@@ -1,0 +1,136 @@
+1   30m  Sane                F  GER         19.0号 GER
+
+2   15m  Orban               D  HUN         32号 SVK
+3   10m  Orban               D  HUN         32号 ENG
+
+5   36m  Sallai              M  HUN         46号 SVK
+2   33m  Sallai              M  HUN         46号 ALB
+3   24m  Sallai              M  HUN         46号 POR
+
+1   10m  Sommer              G  SUI         81号 SCO
+
+3   25m  Widmer              D  SUI         87号 SVK
+2   21m  Widmer              D  SUI         87号 NED
+2   10m  Widmer              D  SUI         87号 GEO
+
+1   30m  Steffen             M  SUI         95号 ITA
+
+4   25m  Vargas              M  SUI         96号 SVK
+
+1   67m  Amdouni             F  SUI         100号 SVK
+1   14m  Amdouni             F  SUI         100号 NED
+
+6   21m  Majer               M  CRO         146号 GEO
+
+2   34m  Modric              M  CRO         147号 POR
+1   33m  Modric              M  CRO         147号 SCO
+1   12m  Modric              M  CRO         147号 ALB
+5   11m  Modric              M  CRO         147号 ESP
+
+3   125m Budimir             F  CRO         151号 SVK
+
+1   13m  Bastoni             D  ITA         160号 ALB
+
+2   10m  DiLorenzo           D  ITA         166号 HUN
+
+2   25m  Frattesi            M  ITA         174号 SVK
+6   11m  Frattesi            M  ITA         174号 ESP
+
+3   16m  Pellegrini          M  ITA         176号 GEO
+
+1   404m Chiesa              F  ITA         178号 SUI
+2   53m  Chiesa              F  ITA         178号 ALB
+1   31m  Chiesa              F  ITA         178号 ENG
+
+3   31m  Olmo                M  ESP         192号 ESP
+
+3   31m  Yamal               F  ESP         201号 ESP
+2   10m  Yamal               F  ESP         201号 ENG
+
+1   10m  Schmeichel          G  DEN         211号 GEO
+
+2   30m  Damsgaard           M  DEN         221号 ITA
+4   13m  Damsgaard           M  DEN         221号 GEO
+
+5   12m  Jensen              M  DEN         227号 GEO
+
+2   10m  Guehi               D  ENG         240号 SUI
+
+1   11m  Stones              D  ENG         243号 SUI
+
+5   10m  Rice                M  ENG         253.0号 GER
+
+1   10m  Samardzic           M  SRB         280号 GEO
+
+2   73m  Mitrovic            F  SRB         284号 ESP
+4   42m  Mitrovic            F  SRB         284号 SVK
+
+3   15m  Schmid              M  AUT         330号 SVK
+
+2   88m  Gregoritsch         F  AUT         336号 SVK
+1   33m  Gregoritsch         F  AUT         336号 ALB
+
+1   30m  Camavinga           M  FRA         344.0号 GER
+
+1   151m Griezmann           F  FRA         345号 ESP
+
+2   20m  Tchouameni          M  FRA         346.0号 GER
+
+2   81m  Muani               F  FRA         350号 NED
+2   53m  Muani               F  FRA         350号 SCO
+
+1   75m  Thuram              F  FRA         353号 ITA
+1   23m  Thuram              F  FRA         353号 POR
+
+2   41m  K.Coman             M  FRA         358号 ESP
+
+1   15m  Hernandez           D  FRA         360号 ENG
+1   10m  Hernandez           D  FRA         360号 HUN
+
+1   10m  Geertruida          D  NED         365号 GEO
+
+1   41m  vanDijk             D  NED         367号 ESP
+2   41m  vanDijk             D  NED         367号 NED
+1   14m  vanDijk             D  NED         367号 POR
+2   10m  vanDijk             D  NED         367号 ENG
+
+3   30m  Wijnaldum           M  NED         371.0号 GER
+
+3   350m Gakpo               F  NED         374号 NED
+2   75m  Gakpo               F  NED         374号 ITA
+
+2   10m  Reijnders           M  NED         377号 GEO
+
+4   60m  Lukebakio           M  BEL         428号 ITA
+
+1   10m  Moldovan            G  ROU         441号 SUI
+
+3   25m  Alibec              F  ROU         460号 SCO
+
+1   12m  Dubravka            G  SVK         467号 SVK
+
+2   13m  Duda                M  SVK         480号 SCO
+
+1   15m  Kucka               M  SVK         483号 SVK
+3   13m  Kucka               M  SVK         483号 SCO
+
+4   29m  Tsyhankov           M  UKR         507号 ESP
+
+1   10m  Mykolenko           D  UKR         508号 ITA
+
+1   27m  Coufal              D  CZE         522号 SVK
+1   10m  Coufal              D  CZE         522.0号 GER
+
+4   320m Fernandes           M  POR         578.0号 GER
+3   60m  Fernandes           M  POR         578号 ITA
+1   41m  Fernandes           M  POR         578号 ESP
+
+1   52m  Jota                F  POR         591号 SCO
+3   35m  Jota                F  POR         591号 ALB
+
+1   14m  Vitinha             M  POR         593号 POR
+
+2   11m  Bardakci            D  TUR         600号 ESP
+
+2   43m  Akturkoglu          F  TUR         620号 SUI
+

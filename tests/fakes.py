@@ -1,9 +1,7 @@
 """In-memory fake repositories implementing the Protocols in
 `fmlwc.persistence.repositories`.
 
-Used by unit tests to avoid pulling in SQLAlchemy. Each fake matches the
-shape of the protocol it replaces; missing methods raise NotImplementedError
-so we catch accidental usage.
+Used by unit tests to avoid pulling in SQLAlchemy.
 """
 
 from __future__ import annotations
@@ -14,13 +12,16 @@ from typing import Optional
 
 from fmlwc.core.enums import (
     AcquisitionVia,
+    AuctionRoundStatus,
     BidStatus,
     EligibilityRestriction,
     Position,
 )
 
 
-# --- mini value objects standing in for ORM rows ----------------------------
+# ---------------------------------------------------------------------------
+# Value objects (stand-ins for ORM rows)
+# ---------------------------------------------------------------------------
 
 @dataclass
 class FakeManager:
@@ -72,20 +73,49 @@ class FakeBid:
 
 
 @dataclass
+class FakeSubmission:
+    id: int
+    round_id: int
+    manager_id: int
+    received_at: datetime
+    source_file: str | None = None
+
+
+@dataclass
+class FakeAuctionRound:
+    id: int
+    index: int
+    opens_at: datetime
+    closes_at: datetime
+    status: AuctionRoundStatus = AuctionRoundStatus.OPEN
+
+
+@dataclass
+class FakeAuctionResult:
+    id: int
+    round_id: int
+    player_id: int
+    winner_manager_id: int
+    price: int
+
+
+@dataclass
 class FakeTransferWindow:
     id: int
     opens_at: datetime
     closes_at: datetime
 
 
-# --- fake repos -------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Fake repos
+# ---------------------------------------------------------------------------
 
 class FakeManagerRepo:
     def __init__(self) -> None:
         self.managers: dict[int, FakeManager] = {}
         self.rosters: dict[int, list[FakeRosterEntry]] = {}
+        self._players: FakePlayerRepo | None = None
 
-    # protocol surface
     def get(self, manager_id: int) -> FakeManager:
         return self.managers[manager_id]
 
@@ -102,17 +132,10 @@ class FakeManagerRepo:
         return [e for e in self.rosters.get(manager_id, []) if e.released_at is None]
 
     def position_count(self, manager_id: int, position: Position) -> int:
-        return sum(1 for e in self.list_roster(manager_id)
-                   if self._player_pos(e.player_id) is position)
-
-    # test helpers (not in protocol)
-    _player_pos_lookup: dict[int, Position] = {}
-
-    def attach_player_repo(self, players: "FakePlayerRepo") -> None:
-        self._players = players
-
-    def _player_pos(self, player_id: int) -> Position:
-        return self._players.get(player_id).position
+        return sum(
+            1 for e in self.list_roster(manager_id)
+            if self._player_pos(e.player_id) is position
+        )
 
     def add_to_roster(
         self,
@@ -127,6 +150,23 @@ class FakeManagerRepo:
             FakeRosterEntry(manager_id, player_id, acquired_at, via, price)
         )
 
+    def release_from_roster(
+        self, manager_id: int, player_id: int, released_at: datetime
+    ) -> None:
+        for entry in self.rosters.get(manager_id, []):
+            if entry.player_id == player_id and entry.released_at is None:
+                entry.released_at = released_at
+                return
+        raise KeyError(f"player {player_id} not on active roster of manager {manager_id}")
+
+    # test helper
+    def attach_player_repo(self, players: "FakePlayerRepo") -> None:
+        self._players = players
+
+    def _player_pos(self, player_id: int) -> Position:
+        assert self._players is not None
+        return self._players.get(player_id).position
+
 
 class FakePlayerRepo:
     def __init__(self) -> None:
@@ -140,7 +180,6 @@ class FakePlayerRepo:
         return self.players[player_id]
 
     def is_free_agent(self, player_id: int, at: datetime) -> bool:
-        # Caller may patch this for specific tests; default True.
         return True
 
 
@@ -149,14 +188,11 @@ class FakeEligibilityRepo:
         self.records: list[FakeEligibilityRecord] = []
 
     def list_for_player(self, player_id: int, at: datetime) -> list[FakeEligibilityRecord]:
-        out: list[FakeEligibilityRecord] = []
-        for r in self.records:
-            if r.player_id != player_id:
-                continue
-            if r.valid_until is not None and r.valid_until <= at:
-                continue
-            out.append(r)
-        return out
+        return [
+            r for r in self.records
+            if r.player_id == player_id
+            and (r.valid_until is None or r.valid_until > at)
+        ]
 
     def add(
         self,
@@ -171,29 +207,121 @@ class FakeEligibilityRepo:
         )
 
 
-class FakeBidRepo:
+class FakeSubmissionRepo:
     def __init__(self) -> None:
-        self.by_id: dict[int, FakeBid] = {}
-        self.by_submission: dict[int, list[int]] = {}
-        self.by_round: dict[int, list[int]] = {}
+        self._by_id: dict[int, FakeSubmission] = {}
+        self._by_round_manager: dict[tuple[int, int], int] = {}  # (round_id, manager_id) -> sub_id
+        self._next_id = 1
 
-    def add(self, bid: FakeBid, *, round_id: int) -> None:
-        self.by_id[bid.id] = bid
-        self.by_submission.setdefault(bid.submission_id, []).append(bid.id)
-        self.by_round.setdefault(round_id, []).append(bid.id)
+    def upsert(
+        self,
+        round_id: int,
+        manager_id: int,
+        received_at: datetime,
+        source_file: str | None = None,
+    ) -> int:
+        key = (round_id, manager_id)
+        if key in self._by_round_manager:
+            # overwrite: update received_at / source_file
+            sub_id = self._by_round_manager[key]
+            s = self._by_id[sub_id]
+            s.received_at = received_at
+            s.source_file = source_file
+            return sub_id
+        sub_id = self._next_id
+        self._next_id += 1
+        sub = FakeSubmission(
+            id=sub_id, round_id=round_id, manager_id=manager_id,
+            received_at=received_at, source_file=source_file,
+        )
+        self._by_id[sub_id] = sub
+        self._by_round_manager[key] = sub_id
+        return sub_id
+
+    def get(self, submission_id: int) -> FakeSubmission:
+        return self._by_id[submission_id]
+
+    def for_round(self, round_id: int) -> list[FakeSubmission]:
+        return [s for s in self._by_id.values() if s.round_id == round_id]
+
+
+class FakeBidRepo:
+    """Fake BidRepo. Requires a FakeSubmissionRepo to resolve for_round() queries."""
+
+    def __init__(self, submission_repo: FakeSubmissionRepo) -> None:
+        self._submissions = submission_repo
+        self._by_id: dict[int, FakeBid] = {}
+        self._by_submission: dict[int, list[int]] = {}
+        self._next_id = 1
+
+    def create(
+        self,
+        submission_id: int,
+        player_id: int,
+        amount: int,
+        rank_in_position: int,
+    ) -> int:
+        bid_id = self._next_id
+        self._next_id += 1
+        bid = FakeBid(
+            id=bid_id, submission_id=submission_id, player_id=player_id,
+            amount=amount, rank_in_position=rank_in_position,
+        )
+        self._by_id[bid_id] = bid
+        self._by_submission.setdefault(submission_id, []).append(bid_id)
+        return bid_id
 
     def for_round(self, round_id: int) -> list[FakeBid]:
-        return [self.by_id[i] for i in self.by_round.get(round_id, [])]
+        sub_ids = {s.id for s in self._submissions.for_round(round_id)}
+        return [b for b in self._by_id.values() if b.submission_id in sub_ids]
 
     def for_submission(self, submission_id: int) -> list[FakeBid]:
-        return [self.by_id[i] for i in self.by_submission.get(submission_id, [])]
+        return [self._by_id[i] for i in self._by_submission.get(submission_id, [])]
 
     def update_status(
         self, bid_id: int, status: BidStatus, reason: str | None = None
     ) -> None:
-        b = self.by_id[bid_id]
+        b = self._by_id[bid_id]
         b.status = status
         b.invalid_reason = reason
+
+
+class FakeAuctionRoundRepo:
+    def __init__(self) -> None:
+        self._by_id: dict[int, FakeAuctionRound] = {}
+
+    def add(self, rnd: FakeAuctionRound) -> None:
+        self._by_id[rnd.id] = rnd
+
+    def get(self, round_id: int) -> FakeAuctionRound:
+        return self._by_id[round_id]
+
+    def set_status(self, round_id: int, status: AuctionRoundStatus) -> None:
+        self._by_id[round_id].status = status
+
+
+class FakeAuctionResultRepo:
+    def __init__(self) -> None:
+        self._results: list[FakeAuctionResult] = []
+        self._next_id = 1
+
+    def create(
+        self,
+        round_id: int,
+        player_id: int,
+        winner_manager_id: int,
+        price: int,
+    ) -> None:
+        self._results.append(
+            FakeAuctionResult(
+                id=self._next_id, round_id=round_id, player_id=player_id,
+                winner_manager_id=winner_manager_id, price=price,
+            )
+        )
+        self._next_id += 1
+
+    def for_round(self, round_id: int) -> list[FakeAuctionResult]:
+        return [r for r in self._results if r.round_id == round_id]
 
 
 class FakeTransferRepo:
@@ -214,8 +342,14 @@ class FakeTransferRepo:
                     prev = w
         return prev
 
+    def next_window(self, at: datetime) -> Optional[FakeTransferWindow]:
+        future = [w for w in self.windows if w.opens_at > at]
+        return min(future, key=lambda w: w.opens_at) if future else None
 
-# --- helper builders --------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Builder helpers
+# ---------------------------------------------------------------------------
 
 def make_repos(
     managers: list[FakeManager] | None = None,
@@ -230,3 +364,20 @@ def make_repos(
         plr.add(p)
     mgr.attach_player_repo(plr)
     return mgr, plr, elig
+
+
+def make_auction_repos(
+    managers: list[FakeManager] | None = None,
+    players: list[FakePlayer] | None = None,
+) -> tuple[
+    FakeManagerRepo, FakePlayerRepo, FakeEligibilityRepo,
+    FakeSubmissionRepo, FakeBidRepo, FakeAuctionRoundRepo, FakeAuctionResultRepo,
+    FakeTransferRepo,
+]:
+    mgr, plr, elig = make_repos(managers, players)
+    sub_repo = FakeSubmissionRepo()
+    bid_repo = FakeBidRepo(sub_repo)
+    rnd_repo = FakeAuctionRoundRepo()
+    res_repo = FakeAuctionResultRepo()
+    trn_repo = FakeTransferRepo()
+    return mgr, plr, elig, sub_repo, bid_repo, rnd_repo, res_repo, trn_repo

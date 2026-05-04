@@ -1,0 +1,210 @@
+CZE 0人                             剩余资金 600m
+Sang
+
+NED 8人                             剩余资金  76m
+Jasper
+NED  Costa               POR            592号   G   10m
+NED  Gvardiol            CRO            135号   D   12m
+NED  Rodri               ESP            198号   M   22m
+NED  Alexander-Arnold    ENG            246号   M   14m
+NED  Tadic               SRB            281号   M   21m
+NED  Mudryk              UKR            502号   M   14m
+NED  Muani               FRA            350号   F   81m
+NED  Gakpo               NED            374号   F  350m
+
+HUN 10人                            剩余资金  10m
+augustusc
+HUN  Gulacsi             HUN             27号   G   10m
+HUN  Schar               SUI             85号   D   10m
+HUN  DiLorenzo           ITA            166号   D   10m
+HUN  Szoboszlai          HUN             36号   M  172m
+HUN  McGinn              SCO             71号   M   71m
+HUN  Sudakov             UKR            506号   M   10m
+HUN  Kvaratskhelia       GEO            560号   M  207m
+HUN  Kramaric            CRO            152号   F   10m
+HUN  Retegui             ITA            181号   F   10m
+HUN  Leao                POR            587号   F   80m
+
+SUI 11人                            剩余资金   0m
+aidengazhaer
+SUI  Moldovan            ROU            441号   G   10m
+SUI  Cancelo             POR            590号   D   12m
+SUI  Guehi               ENG            240号   D   10m
+SUI  Stones              ENG            243号   D   11m
+SUI  Wirtz               GER             17号   M   42m
+SUI  Zuber               SUI             99号   M   12m
+SUI  Pedri               ESP            202号   M   32m
+SUI  Bellingham          ENG            247号   M   12m
+SUI  Kokcu               TUR            614号   M   12m
+SUI  Chiesa              ITA            178号   F  404m
+SUI  Akturkoglu          TUR            620号   F   43m
+
+ENG 8人                             剩余资金  61m
+since
+ENG  Donnarumma          ITA            157号   G   10m
+ENG  Hernandez           FRA            360号   D   15m
+ENG  Musiala             GER             10号   M   15m
+ENG  Gundogan            GER             21号   M   10m
+ENG  Foden               ENG            250号   M  113m
+ENG  Saka                ENG            254号   M  115m
+ENG  Kane                ENG            257号   F  251m
+ENG  Lewandowski         POL            413号   F   10m
+
+POR 8人                             剩余资金  61m
+KakaHiguain
+POR  Lunin               UKR            515号   G   10m
+POR  Carvajal            ESP            184号   D   10m
+POR  Kroos               GER              8号   M   12m
+POR  Guler               TUR            608号   M   11m
+POR  Modric              CRO            147号   M   34m
+POR  Vitinha             POR            593号   M   14m
+POR  Mbappe              FRA            348号   F  422m
+POR  Ronaldo             POR            577号   F   26m
+
+SVN 14人                            剩余资金 153m
+Nocchiere
+SVN  V.Milinkovic-Savic  SRB            261号   G   10m
+SVN  Mladenovic          SRB            267号   D   10m
+SVN  Zalewski            POL            401号   D   12m
+SVN  Ayhan               TUR            603号   D   10m
+SVN  S.Milinkovic-Savic  SRB            279号   M   90m
+SVN  Cerin               SVN            299号   M   10m
+SVN  Verbic              SVN            304号   M   10m
+SVN  Zielinski           POL            411号   M   51m
+SVN  Barak               CZE            529号   M   10m
+SVN  Provod              CZE            535号   M   10m
+SVN  Sesko               SVN            310号   F   77m
+SVN  Sporar              SVN            311号   F   20m
+SVN  Schick              CZE            544号   F   78m
+SVN  Yildiz              TUR            619号   F   49m
+
+TUR 12人                            剩余资金 342m
+sixingdeguo
+TUR  Stanek              CZE            521号   G   13m
+TUR  Mamardashvili       GEO            547号   G   16m
+TUR  Tah                 GER              4号   D   13m
+TUR  Buongiorno          ITA            162号   D   10m
+TUR  Maehle              DEN            218号   D   23m
+TUR  S.Pavlovic          SRB            268号   D   10m
+TUR  Upamecano           FRA            342号   D   13m
+TUR  Ake                 NED            368号   D   13m
+TUR  McTominay           SCO             74号   M   23m
+TUR  Koopmeiners         NED            383号   M   23m
+TUR  Scamacca            ITA            182号   F   43m
+TUR  Vlahovic            SRB            286号   F   58m
+
+ESP 13人                            剩余资金  63m
+Zeymax
+ESP  Simon               ESP            205号   G   13m
+ESP  Grimaldo            ESP            194号   D   13m
+ESP  Christensen         DEN            214号   D   13m
+ESP  vanDijk             NED            367号   D   41m
+ESP  Bardakci            TUR            600号   D   11m
+ESP  Oyarzabal           ESP            203号   M   17m
+ESP  Olmo                ESP            192号   M   31m
+ESP  K.Coman             FRA            358号   M   41m
+ESP  Tsyhankov           UKR            507号   M   29m
+ESP  Morata              ESP            189号   F   73m
+ESP  Yamal               ESP            201号   F   31m
+ESP  Mitrovic            SRB            284号   F   73m
+ESP  Griezmann           FRA            345号   F  151m
+
+DEN 0人                             剩余资金 600m
+rhyshm
+
+GER 15人                            剩余资金  10m
+HydraliskIII
+GER  Szczesny            POL            392号   G   10m
+GER  Akanji              SUI             82号   D   10m
+GER  Saliba              FRA            355号   D   10m
+GER  Kovacic             CRO            145号   M   10m
+GER  Barella             ITA            170号   M   10m
+GER  Hojbjerg            DEN            226号   M   60m
+GER  Rice                ENG          253.0号   M   10m
+GER  Camavinga           FRA          344.0号   M   30m
+GER  Tchouameni          FRA          346.0号   M   20m
+GER  Wijnaldum           NED          371.0号   M   30m
+GER  Fernandes           POR          578.0号   M  320m
+GER  Giroud              FRA            347号   F   10m
+GER  Weghorst            NED            372号   F   20m
+GER  Openda              BEL            440号   F   10m
+GER  Sane                GER           19.0号   F   30m
+
+ITA 13人                            剩余资金 135m
+Montella
+ITA  Neuer               GER              1号   G   10m
+ITA  Oblak               SVN            288号   G   10m
+ITA  Rudiger             GER              2号   D   30m
+ITA  Dimarco             ITA            167号   D   30m
+ITA  Dumfries            NED            385号   D   30m
+ITA  Mykolenko           UKR            508号   D   10m
+ITA  Sabitzer            AUT            329号   M   30m
+ITA  Steffen             SUI             95号   M   30m
+ITA  Damsgaard           DEN            221号   M   30m
+ITA  Lukebakio           BEL            428号   M   60m
+ITA  Dovbyk              UKR            503号   F   60m
+ITA  Ramos               POR            579号   F   60m
+ITA  Thuram              FRA            353号   F   75m
+
+SCO 11人                            剩余资金 212m
+twa
+SCO  Sommer              SUI             81号   G   10m
+SCO  Clauss              FRA            359号   D   10m
+SCO  Shaqiri             SUI             93号   M   82m
+SCO  Baumgartner         AUT            324号   M   52m
+SCO  Chakvetadze         GEO            557号   M   10m
+SCO  B.Silva             POR            580号   M   10m
+SCO  Yilmaz              TUR            609号   M   62m
+SCO  Duda                SVK            480号   M   13m
+SCO  Fullkrug            GER              9号   F   62m
+SCO  Alibec              ROU            460号   F   25m
+SCO  Jota                POR            591号   F   52m
+
+ALB 13人                            剩余资金 171m
+jiamingpku
+ALB  E.Berisha           ALB            105号   G   10m
+ALB  Vestergaard         DEN            220号   D   13m
+ALB  Skriniar            SVK            476号   D   23m
+ALB  Zinchenko           UKR            509号   D   16m
+ALB  Dias                POR            574号   D   16m
+ALB  Bastoni             ITA            160号   D   13m
+ALB  Xhaka               SUI             97号   M   32m
+ALB  Simons              NED            370号   M   53m
+ALB  DeBruyne            BEL            427号   M   82m
+ALB  Trossard            BEL            432号   M   53m
+ALB  Soucek              CZE            537号   M   32m
+ALB  Calhanoglu          TUR            610号   M   33m
+ALB  Doku                BEL            438号   F   53m
+
+SVK 12人                            剩余资金 125m
+zincum
+SVK  Dubravka            SVK            467号   G   12m
+SVK  Orban               HUN             32号   D   15m
+SVK  Widmer              SUI             87号   D   25m
+SVK  Coufal              CZE            522号   D   27m
+SVK  Sallai              HUN             46号   M   36m
+SVK  Vargas              SUI             96号   M   25m
+SVK  Frattesi            ITA            174号   M   25m
+SVK  Schmid              AUT            330号   M   15m
+SVK  Kucka               SVK            483号   M   15m
+SVK  Amdouni             SUI            100号   F   67m
+SVK  Budimir             CRO            151号   F  125m
+SVK  Gregoritsch         AUT            336号   F   88m
+
+GEO 14人                            剩余资金  23m
+saul
+GEO  Schmeichel          DEN            211号   G   10m
+GEO  Frimpong            NED            375号   D  101m
+GEO  Geertruida          NED            365号   D   10m
+GEO  Havertz             GER              7号   M  131m
+GEO  Gordon              ENG            251号   M   10m
+GEO  Majer               CRO            146号   M   21m
+GEO  Pellegrini          ITA            176号   M   16m
+GEO  Jensen              DEN            227号   M   12m
+GEO  Samardzic           SRB            280号   M   10m
+GEO  Reijnders           NED            377号   M   10m
+GEO  Hojlund             DEN            231号   F   31m
+GEO  Depay               NED            373号   F   58m
+GEO  Lukaku              BEL            439号   F  147m
+GEO  Mikautadze          GEO            569号   F   10m
+
