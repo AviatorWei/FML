@@ -24,7 +24,7 @@ from .injury import InjuryAdjustmentService
 from .lineup import LineupValidator
 from .match import (
     BonusEngine,
-    FmeGoalCalculator,
+    ValidGoalCalculator,
     GroupStandings,
     PickService,
     PkResolver,
@@ -42,7 +42,7 @@ class SeasonOrchestrator:
     trades: TradeService
     releases: ReleaseService
     lineup_validator: LineupValidator
-    scoring: FmeGoalCalculator
+    scoring: ValidGoalCalculator
     bonuses: BonusEngine
     scheduler: Scheduler
     standings: dict[str, GroupStandings]
@@ -81,4 +81,4 @@ class SeasonOrchestrator:
         raise NotImplementedError("TODO")
 
     def finalise(self) -> None:
-        raise NotImplementedError("TODO: DONE; emit final ranking JSON")
+        raise NotImplementedError("TODO: DONE; emit final ranking JSO

@@ -150,12 +150,18 @@ def _parse_auction(r):
         invalidate_tie_priority=_parse_position_list(_require(cas, "invalidate_tie_priority", "auction.cascade"), "auction.cascade.invalidate_tie_priority"),
         invalidate_tie_within_pos=_as_str(_require(cas, "invalidate_tie_within_pos", "auction.cascade"), "auction.cascade.invalidate_tie_within_pos"),
     )
+    cr = r.get("conditional_release", {}) if isinstance(r, dict) else {}
+    conditional_release_enabled = _as_bool(
+        cr.get("enabled", False),
+        "auction.conditional_release.enabled",
+    )
     return AuctionConfig(
         rounds=rounds,
         min_bid=_as_int(_require(r, "min_bid", "auction"), "auction.min_bid"),
         tiebreaker=_as_str(_require(r, "tiebreaker", "auction"), "auction.tiebreaker"),
         cascade=cascade,
         collusion_block_next_window=_as_bool(_require(r, "collusion_block_next_window", "auction"), "auction.collusion_block_next_window"),
+        conditional_release_enabled=conditional_release_enabled,
     )
 
 
@@ -347,7 +353,7 @@ class GameRules:
         try:
             import yaml
         except ImportError as e:
-            raise ConfigError("PyYAML not installed - call GameRules.from_dict()") from e
+            raise ConfigError("PyYAML not installed") from e
         text = Path(path).read_text(encoding="utf-8")
         try:
             raw = yaml.safe_load(text)

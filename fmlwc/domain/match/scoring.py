@@ -1,4 +1,4 @@
-"""Valid-goal (FME) calculation (rule 零.4 + 五.2).
+"""Valid-goal calculation (rule 零.4 + 五.2).
 
 team_goals(manager, fixture) =
     Sum events such that
@@ -24,7 +24,7 @@ class FixtureScore:
     outcome: MatchOutcome
 
 
-class FmeGoalCalculator:
+class ValidGoalCalculator:
     def __init__(self, rules: GameRules) -> None:
         self.rules = rules
 
