@@ -1,0 +1,133 @@
+# FMLWC 规则配置示例 — 对齐 FME-2021 (Euro 2020/2021)
+# 本文件是引擎唯一的"事实数值源"。改这里 = 改规则。
+# 引擎对照: fmlwc/config.py 的 GameRules
+
+scope:
+  name: "Euro 2024 League"
+  short: "FME-24"
+  timezone: "Asia/Shanghai"
+
+# 玩家与队伍 -----------------------------------------------------------
+managers:
+  count: 16
+  initial_budget: 600        # 600m
+  groups: 4                           # 16 → 4×4
+
+# 大名单约束 -----------------------------------------------------------
+roster:
+  total_cap: 20
+  position_caps: { G: 2, D: 6, M: 8, F: 4 }
+
+# 阵容 -----------------------------------------------------------------
+lineup:
+  starters_min: 8
+  starters_max: 10
+  appearance_caps: { G: 1, D: 3, M: 4, F: 2 }
+  must_have_positions: [G]
+  # 向后顶替: D 可代 M/F；M 可代 F；G/F 不能跨位
+  backward_substitution:
+    D: [M, F]
+    M: [F]
+  default_strategy: "previous_round_then_top_value"
+  misplaced_player_action: "drop_silent"   # 错位球员视为未首发, 无罚
+  
+# 暗标 -----------------------------------------------------------------
+auction:
+  rounds:
+    - { index: 1, opens_at: "2026-06-01T20:00:00+08:00", closes_at: "2026-06-02T20:00:00+08:00" }
+    - { index: 2, opens_at: "2026-06-08T20:00:00+08:00", closes_at: "2026-06-09T20:00:00+08:00" }
+  min_bid: 10                 # 单笔最低 10m
+  tiebreaker: "amount_rank_time_draw" # (-amount, rank, received_at, draw)
+  cascade:
+    position_priority: [F, M, D, G]   # 多位置同时超帽时的处理顺序
+    invalidate_tie_priority: [F, M, D, G]   # 同价时按 F>M>D>G
+    invalidate_tie_within_pos: "lower_rank_first"
+  # 防共谋: 暗标签出后, 其他经理在下一个转会窗失格
+  collusion_block_next_window: true
+
+# 转会窗 ---------------------------------------------------------------
+transfer:
+  windows:
+    - { opens_at: "2026-06-03T08:00:00+08:00", closes_at: "2026-06-07T23:59:59+08:00",
+        free_sign_period_seconds: 86400 }
+    - { opens_at: "2026-06-10T08:00:00+08:00", closes_at: "2026-06-15T23:59:59+08:00",
+        free_sign_period_seconds: 43200 }
+  free_sign_fee: 10
+  revoke_window_seconds: 900           # 15 分钟反悔
+  trades:
+    allow_cash: true
+    require_counterparty_accept: true
+  # 同窗其他经理不可再签同一球员
+  same_window_block_after_free_sign: true
+
+# 解约 -----------------------------------------------------------------
+release:
+  refund: 0
+  releaser_lifetime_block: true        # 解约者本赛季永久失格
+  revoke_window_seconds: 900
+
+# 比赛 -----------------------------------------------------------------
+match:
+  group_stage:
+    rounds: 3
+    points: { W: 3, D: 1, L: 0 }
+    tiebreak_order:
+      - "points"
+      - "goals_for"
+      - "goals_against_more_first"      # 规则原文: 失球多者靠前 (反直觉, 严格按文)
+      - "head_to_head"
+      - "real_knockout_qualifiers"
+      - "committee_draw"
+  knockout:
+    bracket: "euro2024_8team"           # 见 fmlwc/match/schedule.py 内置映射
+    advance_priority: ["valid_goal", "pk"]
+    pk_score:
+      goal: 2
+      assist: 1
+      yellow: -0.3
+      second_yellow_red: -0.7
+      red: -1
+      real_advance_bonus: 0.5
+    pk_default_order: [F, M, D, G]
+    enable_pick: true
+    pick_deadline_seconds: 86400        # 淘汰赛结束后 24h
+
+# 进球判定 -------------------------------------------------------------
+valid_goal:
+  count_event_types: [GOAL, OWN_GOAL, SAVED_PENALTY_BY_GK]
+  exclude_penalty_shootout: true
+  scope_minutes: "regular_and_extra_time"
+
+# 单场奖金 -------------------------------------------------------------
+bonuses:
+  assist:        { enabled: true, per_event: 5 }
+  red_card:      { enabled: true, per_event: 5 }
+  blue_team:
+    enabled: true
+    threshold_conceded_gt: 5
+    threshold_net_lt: -2
+    formula: "2*conceded - scored"
+  missed_penalty: { enabled: true, per_event: 3 }
+
+# 出线奖 / 晋级奖 ------------------------------------------------------
+prizes:
+  qualify:
+    extra: 80
+    weight_formula: "points + 0.5 * goals_for"
+  advance:
+    extra: 80
+    weight_formula: "net_goals + 1"
+  rounding: "half_up_million"
+
+# 伤兵特例 -------------------------------------------------------------
+injury:
+  enabled: true
+  refund_last_signing_fee: true
+  grant_extra_free_sign_after_window: true
+  gk_zero_balance_grant: 10
+
+# 持久化 ---------------------------------------------------------------
+storage:
+  driver: "sqlite"
+  url: "sqlite:///fmlwc.db"
+  echo: fals

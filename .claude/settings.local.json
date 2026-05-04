@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Read(//usr/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/**)",
+      "Bash(conda run *)",
+      "Bash(~/anaconda3/bin/conda run *)",
+      "Bash(~/anaconda3/bin/conda search *)",
+      "Bash(~/anaconda3/bin/conda create *)",
+      "Bash(~/anaconda3/envs/fmlwc/bin/python --version)",
+      "Bash(~/anaconda3/envs/fmlwc/bin/pip install *)",
+      "Bash(~/anaconda3/envs/fmlwc/bin/python *)",
+      "Bash(~/anaconda3/bin/conda install *)",
+      "Bash(~/anaconda3/envs/fmlwc/bin/pip list *)",
+      "Bash(~/anaconda3/bin/conda env *)",
+      "Bash(make test *)"
+    ]
+  }
+}
