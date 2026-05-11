@@ -83,6 +83,9 @@ class BidRepo(Protocol):
     ) -> int: ...
     """Insert a new bid row; returns the new bid_id."""
 
+    def clear_for_submission(self, submission_id: int) -> None: ...
+    """Delete all bids for this submission (used on re-submit)."""
+
     def for_round(self, round_id: int) -> list["Bid"]: ...
     def for_submission(self, submission_id: int) -> list["Bid"]: ...
     def update_status(
@@ -168,6 +171,7 @@ class SqlBidRepo:
         self.s = session
 
     def create(self, submission_id, player_id, amount, rank_in_position): raise NotImplementedError
+    def clear_for_submission(self, submission_id): raise NotImplementedError
     def for_round(self, round_id): raise NotImplementedError
     def for_submission(self, submission_id): raise NotImplementedError
     def update_status(self, bid_id, status, reason=None): raise NotImplementedError

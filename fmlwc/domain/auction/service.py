@@ -139,6 +139,7 @@ class AuctionService:
         )
 
         sub_id = self.submissions.upsert(round_id, manager_id, received_at, source_file)
+        self.bids.clear_for_submission(sub_id)  # drop stale bids on re-submit
 
         for outcome in outcomes:
             bid_id = self.bids.create(

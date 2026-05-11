@@ -107,19 +107,23 @@ def test_lifetime_release_block_self():
     assert out.status is BidStatus.INVALID_INELIGIBLE
 
 
-def test_duplicate_rank_within_position_invalidates_both():
+def test_duplicate_rank_within_position_reassigned():
+    # First duplicate keeps its rank; later duplicates are reassigned to 100+.
+    # Different positions don't affect each other.
     rules, plr, elig, v = _setup()
     plr.add(FakePlayer(id=4, name="P4", position=Position.F))
     bids = [
-        RawBid(manager_id=1, player_id=1, amount=20, rank_in_position=1),
-        RawBid(manager_id=1, player_id=4, amount=15, rank_in_position=1),
-        RawBid(manager_id=1, player_id=2, amount=10, rank_in_position=1),  # mid, OK
+        RawBid(manager_id=1, player_id=1, amount=20, rank_in_position=1),  # F rank1 — first
+        RawBid(manager_id=1, player_id=4, amount=15, rank_in_position=1),  # F rank1 — dup → 100
+        RawBid(manager_id=1, player_id=2, amount=10, rank_in_position=1),  # M rank1 — independent
     ]
     outs = v.validate_submission(bids, balance_at_close=600, at=NOW)
-    assert outs[0].status is BidStatus.INVALID_PER_BID
-    assert outs[1].status is BidStatus.INVALID_PER_BID
-    assert "duplicate rank" in outs[0].reason
-    assert outs[2].status is BidStatus.VALID  # different position, fine
+    assert outs[0].status is BidStatus.VALID
+    assert outs[0].bid.rank_in_position == 1      # first keeps original rank
+    assert outs[1].status is BidStatus.VALID
+    assert outs[1].bid.rank_in_position == 100    # duplicate reassigned
+    assert outs[2].status is BidStatus.VALID
+    assert outs[2].bid.rank_in_position == 1      # different position — unaffected
 
 
 # --- conditional release tests -------------------------------------------

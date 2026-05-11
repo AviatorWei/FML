@@ -278,6 +278,11 @@ class FakeBidRepo:
     def for_submission(self, submission_id: int) -> list[FakeBid]:
         return [self._by_id[i] for i in self._by_submission.get(submission_id, [])]
 
+    def clear_for_submission(self, submission_id: int) -> None:
+        bid_ids = self._by_submission.pop(submission_id, [])
+        for bid_id in bid_ids:
+            self._by_id.pop(bid_id, None)
+
     def update_status(
         self, bid_id: int, status: BidStatus, reason: str | None = None
     ) -> None:

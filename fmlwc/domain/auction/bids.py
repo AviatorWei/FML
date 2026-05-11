@@ -112,31 +112,46 @@ class BidValidator:
         return ValidationOutcome(bid, BidStatus.VALID)
 
     def validate_submission(self, bids, *, balance_at_close, at):
-        """Run validate_one across the submission, then enforce rank uniqueness.
+        """Run validate_one, then resolve duplicate acquisition ranks.
 
-        Acquisition bids (rank > 0): unique per (position, rank).
-        Conditional release bids (rank < 0): unique globally across the
-        whole submission — negative ranks are release-order slots, not
-        per-position.
+        Rule 二.3 does not list duplicate acquisition ranks as invalid.
+        The first bid seen at a given (position, rank) keeps its rank;
+        later duplicates are reassigned to 100, 101, … per position so
+        they remain VALID but are deprioritized in cascade/tiebreaker.
+
+        Conditional release bids (rank < 0): unique globally — duplicate
+        release-order slots are ambiguous and are marked INVALID_PER_BID.
         """
         outcomes = [self.validate_one(b, balance_at_close=balance_at_close, at=at) for b in bids]
 
-        # Acquisition rank uniqueness: per (position, rank)
-        seen_acq: dict = {}
-        for i, o in enumerate(outcomes):
+        # Acquisition duplicate-rank reassignment: per (position, rank).
+        seen: dict[str, set[int]] = {}   # pos_val -> taken rank set
+        next_fb: dict[str, int] = {}     # pos_val -> next fallback rank
+        fixed: list[ValidationOutcome] = []
+        for o in outcomes:
             if o.status is not BidStatus.VALID or o.bid.is_conditional_release:
+                fixed.append(o)
                 continue
             pos = self.players.get(o.bid.player_id).position
-            key = (pos.value if hasattr(pos, "value") else pos, o.bid.rank_in_position)
-            seen_acq.setdefault(key, []).append(i)
-        for key, idxs in seen_acq.items():
-            if len(idxs) > 1:
-                for i in idxs:
-                    outcomes[i] = ValidationOutcome(
-                        outcomes[i].bid,
-                        BidStatus.INVALID_PER_BID,
-                        "duplicate rank within position",
-                    )
+            pv = pos.value if hasattr(pos, "value") else str(pos)
+            taken = seen.setdefault(pv, set())
+            if o.bid.rank_in_position not in taken:
+                taken.add(o.bid.rank_in_position)
+                fixed.append(o)
+            else:
+                fb = next_fb.get(pv, 100)
+                while fb in taken:
+                    fb += 1
+                taken.add(fb)
+                next_fb[pv] = fb + 1
+                new_bid = RawBid(
+                    manager_id=o.bid.manager_id,
+                    player_id=o.bid.player_id,
+                    amount=o.bid.amount,
+                    rank_in_position=fb,
+                )
+                fixed.append(ValidationOutcome(new_bid, o.status, o.reason))
+        outcomes = fixed
 
         # Conditional release rank uniqueness: global (rank -1 is unique regardless of position)
         seen_cr: dict = {}

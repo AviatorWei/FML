@@ -15,7 +15,12 @@
       "Bash(~/anaconda3/bin/conda install *)",
       "Bash(~/anaconda3/envs/fmlwc/bin/pip list *)",
       "Bash(~/anaconda3/bin/conda env *)",
-      "Bash(make test *)"
+      "Bash(make test *)",
+      "Bash(python3 scripts/run_auction1.py)",
+      "Read(//home/aviatorwei/**)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/python3 scripts/run_auction1.py)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/pip install *)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/python3 *)"
     ]
   }
 }
