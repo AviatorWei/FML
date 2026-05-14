@@ -127,3 +127,9 @@ class GameweekPhase(str, enum.Enum):
     QF = "QF"
     SF = "SF"
     F = "F"
+
+
+class GameweekStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    LIVE = "LIVE"
+    FINALIZED = "FINALIZED"

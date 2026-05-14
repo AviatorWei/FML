@@ -58,6 +58,153 @@ fmlwc/
 3. 实装真实事件导入器（UEFA/Whoscored 适配器）。
 4. 用 Alembic 替换 `db.create_all`。
 
+## Match event interface
+
+The entry point for live match management is `RoundService` in
+`fmlwc.domain.match.round`. It exposes three operations:
+
+| Method | When to call |
+|---|---|
+| `add_event(gameweek_id, player_id, event_type, ...)` | Any time during a LIVE gameweek |
+| `remove_event(gameweek_id, event_id)` | Correct a mistake while still LIVE |
+| `finalize_gameweek(gameweek_id)` | Lock the round, write results + stats |
+
+### Wiring up the service
+
+```python
+from fmlwc.core.config import GameRules
+from fmlwc.core.enums import GameweekStatus, RealEventType
+from fmlwc.persistence.db import create_all, make_engine, make_session_factory, session_scope
+from fmlwc.persistence.repositories import (
+    SqlAthleticsRepo,
+    SqlFixtureRepo,
+    SqlGameweekRepo,
+    SqlManagerRepo,
+    SqlMatchEventRepo,
+)
+from fmlwc.domain.match.round import RoundService
+
+rules = GameRules.from_yaml("config/rules.example.yaml")
+
+engine = make_engine("sqlite:///fmlwc.db")
+create_all(engine)                          # dev/demo only — use Alembic in production
+factory = make_session_factory(engine)
+
+with session_scope(factory) as session:
+    service = RoundService(
+        rules=rules,
+        gameweeks=SqlGameweekRepo(session),
+        fixtures=SqlFixtureRepo(session),
+        events=SqlMatchEventRepo(session),
+        athletics=SqlAthleticsRepo(session),
+        managers=SqlManagerRepo(session),
+    )
+```
+
+### Adding events during a live gameweek
+
+`add_event` returns the new `event_id` so you can retract it if needed.
+The gameweek must already be in `LIVE` status (set via `GameweekRepo.set_status`);
+calling on a `PENDING` or `FINALIZED` gameweek raises `MatchError`.
+
+```python
+with session_scope(factory) as session:
+    svc = RoundService(rules=rules,
+                       gameweeks=SqlGameweekRepo(session),
+                       fixtures=SqlFixtureRepo(session),
+                       events=SqlMatchEventRepo(session),
+                       athletics=SqlAthleticsRepo(session),
+                       managers=SqlManagerRepo(session))
+
+    gameweek_id = 1
+
+    # Regular goal by player 42 in minute 67
+    goal_id = svc.add_event(gameweek_id, player_id=42,
+                            event_type=RealEventType.GOAL, minute=67)
+
+    # Assist by player 7 (same move)
+    svc.add_event(gameweek_id, player_id=7,
+                  event_type=RealEventType.ASSIST, minute=67)
+
+    # Extra-time goal — flag it so scoring can distinguish if needed
+    svc.add_event(gameweek_id, player_id=99,
+                  event_type=RealEventType.GOAL, minute=104, is_extra_time=True)
+
+    # Penalty shootout goal — excluded from valid-goal count by default
+    svc.add_event(gameweek_id, player_id=42,
+                  event_type=RealEventType.GOAL, is_shootout=True)
+```
+
+Available `RealEventType` values:
+
+| Value | Counts as valid goal? | Notes |
+|---|---|---|
+| `GOAL` | yes | Regular or extra-time |
+| `OWN_GOAL` | yes | Credited to the scorer's own team |
+| `SAVED_PENALTY_BY_GK` | yes | +1 for the keeper's team |
+| `MISSED_PENALTY` | no | Triggers `MissedPenaltyBonus` |
+| `ASSIST` | no | Triggers `AssistBonus` |
+| `YELLOW` | no | PK scoring input |
+| `SECOND_YELLOW_RED` | no | PK scoring input |
+| `RED` | no | Triggers `RedCardBonus`, PK scoring input |
+
+### Removing a mistaken event
+
+Pass the `event_id` returned by `add_event`. Only allowed while the
+gameweek is `LIVE`.
+
+```python
+with session_scope(factory) as session:
+    svc = RoundService(...)
+
+    # VAR overturns the goal — retract it
+    svc.remove_event(gameweek_id=1, event_id=goal_id)
+```
+
+### Finalizing the gameweek
+
+Call once all events have been entered and verified. This is the only
+write that cannot be undone.
+
+```python
+with session_scope(factory) as session:
+    svc = RoundService(...)
+    svc.finalize_gameweek(gameweek_id=1)
+```
+
+What happens internally:
+
+1. **Fixture scores** — `ValidGoalCalculator` runs per fixture using the
+   submitted lineups as the starter filter. Results are written to
+   `match_results`.
+2. **Bonuses** — `BonusEngine` computes assist / red-card / blue-team /
+   missed-penalty awards and credits each manager's balance.
+3. **Player career stats** — `PlayerAthletics` is incremented for every
+   starter event (goals, assists, cards). Reflects the player's total
+   regardless of transfers.
+4. **Team aggregate** — `ManagerStats` is incremented with the same
+   events, attributed to the manager who fielded the player in *this*
+   gameweek's lineup, not the current owner.
+5. **Per-player team breakdown** — `ManagerPlayerAthletics`
+   `(manager_id, player_id)` is incremented, giving a per-player
+   breakdown within each manager's historical roster.
+6. Gameweek status is set to `FINALIZED`.
+
+### Stats attribution example
+
+```
+Gameweek 1 — player A on Manager1's lineup, scores 2 goals
+Gameweek 3 — player A transferred to Manager2, scores 1 goal
+
+After finalize_gameweek(3):
+
+PlayerAthletics      player_A           goals = 3
+ManagerStats         manager_1          goals = 2
+ManagerStats         manager_2          goals = 1
+ManagerPlayerAthletics (manager_1, player_A)  goals = 2
+ManagerPlayerAthletics (manager_2, player_A)  goals = 1
+```
+
 ## 参考
 
 - [`RULES.md`](./RULES.md) — FME-2021 规则原文

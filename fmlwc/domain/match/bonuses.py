@@ -51,7 +51,7 @@ def _count_event_for_starters(ctx, event_type, starters):
         if getattr(ev, "is_shootout", False):
             continue
         et = ev.event_type.value if hasattr(ev.event_type, "value") else ev.event_type
-        if et == event_type and ev.real_player_id in starter_set:
+        if et == event_type and ev.player_id in starter_set:
             n += 1
     return n
 

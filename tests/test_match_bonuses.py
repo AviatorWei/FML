@@ -22,7 +22,7 @@ from tests.sample_rules import default_rules
 
 @dataclass
 class Ev:
-    real_player_id: int
+    player_id: int
     event_type: RealEventType
     is_shootout: bool = False
 

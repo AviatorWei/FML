@@ -1,4 +1,4 @@
-"""ORM: gameweeks, fixtures, lineups, real events, results, bonuses."""
+"""ORM: gameweeks, fixtures, lineups, match events, results, bonuses, athletics."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ...core.enums import GameweekPhase, MatchOutcome, RealEventType
+from ...core.enums import GameweekPhase, GameweekStatus, MatchOutcome, RealEventType
 from ..base import Base
 
 
@@ -27,7 +27,9 @@ class Gameweek(Base):
     index: Mapped[int] = mapped_column(Integer, unique=True)
     phase: Mapped[GameweekPhase] = mapped_column(SAEnum(GameweekPhase))
     lineup_deadline: Mapped[datetime] = mapped_column(DateTime)
-    status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    status: Mapped[GameweekStatus] = mapped_column(
+        SAEnum(GameweekStatus), default=GameweekStatus.PENDING
+    )
 
 
 class Fixture(Base):
@@ -51,16 +53,19 @@ class Lineup(Base):
     __table_args__ = (UniqueConstraint("fixture_id", "manager_id"),)
 
 
-class RealMatchEvent(Base):
-    """Normalised event sourced from external feed (UEFA/Whoscored/manual)."""
+class MatchEvent(Base):
+    """A single in-match event (goal, assist, card, …) for one player.
 
-    __tablename__ = "real_match_events"
+    Keyed by (gameweek, player) — not fixture — so the user-facing API
+    never needs to supply a fixture_id. The DAL converts player→manager
+    via lineup snapshots at finalization time.
+    """
+
+    __tablename__ = "match_events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     gameweek_id: Mapped[int] = mapped_column(ForeignKey("gameweeks.id"))
-    real_match_id: Mapped[str] = mapped_column(String(64))
-    real_player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
     event_type: Mapped[RealEventType] = mapped_column(SAEnum(RealEventType))
-    value: Mapped[float] = mapped_column(default=1.0)
     minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_extra_time: Mapped[bool] = mapped_column(Boolean, default=False)
     is_shootout: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -84,3 +89,63 @@ class BonusAward(Base):
     manager_id: Mapped[int] = mapped_column(ForeignKey("managers.id"))
     bonus_type: Mapped[str] = mapped_column(String(32))
     amount: Mapped[int] = mapped_column(Integer)  # unit: million EUR
+
+
+class PlayerAthletics(Base):
+    """Career scoring stats for one player across the whole season.
+
+    Always reflects the player's total regardless of transfers.
+    Per-manager attribution lives in ManagerPlayerAthletics.
+    """
+
+    __tablename__ = "player_athletics"
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), primary_key=True)
+    goals: Mapped[int] = mapped_column(Integer, default=0)
+    own_goals: Mapped[int] = mapped_column(Integer, default=0)
+    saved_penalties: Mapped[int] = mapped_column(Integer, default=0)
+    missed_penalties: Mapped[int] = mapped_column(Integer, default=0)
+    assists: Mapped[int] = mapped_column(Integer, default=0)
+    yellows: Mapped[int] = mapped_column(Integer, default=0)
+    second_yellow_reds: Mapped[int] = mapped_column(Integer, default=0)
+    reds: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ManagerStats(Base):
+    """Team-level aggregate: sum of all starters a manager has ever fielded.
+
+    Answers "how much has Team X contributed this season?" without a
+    per-player breakdown. Attribution is fixed at the gameweek each player
+    was fielded, not their current owner.
+    """
+
+    __tablename__ = "manager_stats"
+    manager_id: Mapped[int] = mapped_column(ForeignKey("managers.id"), primary_key=True)
+    goals: Mapped[int] = mapped_column(Integer, default=0)
+    own_goals: Mapped[int] = mapped_column(Integer, default=0)
+    saved_penalties: Mapped[int] = mapped_column(Integer, default=0)
+    missed_penalties: Mapped[int] = mapped_column(Integer, default=0)
+    assists: Mapped[int] = mapped_column(Integer, default=0)
+    yellows: Mapped[int] = mapped_column(Integer, default=0)
+    second_yellow_reds: Mapped[int] = mapped_column(Integer, default=0)
+    reds: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ManagerPlayerAthletics(Base):
+    """Per-player breakdown within a manager's team.
+
+    Answers "which of my players scored what, and when they were on my roster?"
+    Composite PK (manager_id, player_id); a player who moves teams gets one
+    row per manager they played for.
+    """
+
+    __tablename__ = "manager_player_athletics"
+    manager_id: Mapped[int] = mapped_column(ForeignKey("managers.id"), primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), primary_key=True)
+    goals: Mapped[int] = mapped_column(Integer, default=0)
+    own_goals: Mapped[int] = mapped_column(Integer, default=0)
+    saved_penalties: Mapped[int] = mapped_column(Integer, default=0)
+    missed_penalties: Mapped[int] = mapped_column(Integer, default=0)
+    assists: Mapped[int] = mapped_column(Integer, default=0)
+    yellows: Mapped[int] = mapped_column(Integer, default=0)
+    second_yellow_reds: Mapped[int] = mapped_column(Integer, default=0)
+    reds: Mapped[int] = mapped_column(Integer, default=0)

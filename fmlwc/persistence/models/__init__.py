@@ -19,8 +19,11 @@ from .match import (
     Fixture,
     Gameweek,
     Lineup,
+    ManagerPlayerAthletics,
+    ManagerStats,
+    MatchEvent,
     MatchResult,
-    RealMatchEvent,
+    PlayerAthletics,
 )
 from .people import Manager, Player, RosterEntry
 from .transfer import FreeSign, Release, Trade, TradeLeg, TransferWindow
@@ -35,7 +38,8 @@ __all__ = [
     # eligibility
     "EligibilityRecord",
     # match
-    "Gameweek", "Fixture", "Lineup", "RealMatchEvent", "MatchResult", "BonusAward",
+    "Gameweek", "Fixture", "Lineup", "MatchEvent", "MatchResult", "BonusAward",
+    "PlayerAthletics", "ManagerStats", "ManagerPlayerAthletics",
     # knockout
     "RosterSnapshot", "Pick",
     # injury

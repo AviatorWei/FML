@@ -17,7 +17,9 @@ from ..core.enums import (
     AuctionRoundStatus,
     BidStatus,
     EligibilityRestriction,
+    GameweekStatus,
     Position,
+    RealEventType,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +34,10 @@ if TYPE_CHECKING:
     AuctionResult = m.AuctionResult
     EligibilityRecord = m.EligibilityRecord
     TransferWindow = m.TransferWindow
+    Gameweek = m.Gameweek
+    Fixture = m.Fixture
+    Lineup = m.Lineup
+    MatchEvent = m.MatchEvent
 else:
     Manager = Any
     Player = Any
@@ -42,6 +48,10 @@ else:
     AuctionResult = Any
     EligibilityRecord = Any
     TransferWindow = Any
+    Gameweek = Any
+    Fixture = Any
+    Lineup = Any
+    MatchEvent = Any
 
 
 # ===========================================================================
@@ -217,3 +227,96 @@ class SqlEligibilityRepo:
 
     def list_for_player(self, player_id, at): raise NotImplementedError
     def add(self, manager_id, player_id, restriction, valid_until, reason=None): raise NotImplementedError
+
+
+class GameweekRepo(Protocol):
+    def get(self, gameweek_id: int) -> "Gameweek": ...
+    def set_status(self, gameweek_id: int, status: GameweekStatus) -> None: ...
+    def fixtures_for(self, gameweek_id: int) -> list["Fixture"]: ...
+
+
+class FixtureRepo(Protocol):
+    def get(self, fixture_id: int) -> "Fixture": ...
+    def lineup_for(self, fixture_id: int, manager_id: int) -> Optional["Lineup"]: ...
+    def player_manager_map(self, gameweek_id: int) -> dict[int, int]: ...
+    """Returns {player_id: manager_id} for every starter across all fixtures in the gameweek.
+
+    Derived by reading Lineup.starters JSON for each fixture in the gameweek.
+    Used by RoundService to attribute events to managers without fixture_id in the API.
+    """
+
+
+class MatchEventRepo(Protocol):
+    def add(
+        self,
+        gameweek_id: int,
+        player_id: int,
+        event_type: RealEventType,
+        *,
+        minute: int | None = None,
+        is_extra_time: bool = False,
+        is_shootout: bool = False,
+    ) -> int: ...
+    """Persist one event; returns the new event_id."""
+
+    def remove(self, event_id: int) -> None: ...
+    """Delete one event (only valid while gameweek is LIVE)."""
+
+    def for_players_in_gameweek(
+        self, gameweek_id: int, player_ids: set[int]
+    ) -> list["MatchEvent"]: ...
+    """Return all events for the given players in this gameweek."""
+
+
+class AthleticsRepo(Protocol):
+    def increment_player(self, player_id: int, delta: dict[str, int]) -> None: ...
+    """Upsert a PlayerAthletics row, adding delta values to existing counts."""
+
+    def increment_manager(self, manager_id: int, delta: dict[str, int]) -> None: ...
+    """Upsert a ManagerStats row, adding delta values to existing counts."""
+
+    def increment_manager_player(
+        self, manager_id: int, player_id: int, delta: dict[str, int]
+    ) -> None: ...
+    """Upsert a ManagerPlayerAthletics row for this (manager, player) pair."""
+
+
+# ---------------------------------------------------------------------------
+# SQL skeleton stubs
+# ---------------------------------------------------------------------------
+
+class SqlGameweekRepo:
+    def __init__(self, session) -> None:
+        self.s = session
+
+    def get(self, gameweek_id): raise NotImplementedError
+    def set_status(self, gameweek_id, status): raise NotImplementedError
+    def fixtures_for(self, gameweek_id): raise NotImplementedError
+
+
+class SqlFixtureRepo:
+    def __init__(self, session) -> None:
+        self.s = session
+
+    def get(self, fixture_id): raise NotImplementedError
+    def lineup_for(self, fixture_id, manager_id): raise NotImplementedError
+    def player_manager_map(self, gameweek_id): raise NotImplementedError
+
+
+class SqlMatchEventRepo:
+    def __init__(self, session) -> None:
+        self.s = session
+
+    def add(self, gameweek_id, player_id, event_type, *, minute=None,
+            is_extra_time=False, is_shootout=False): raise NotImplementedError
+    def remove(self, event_id): raise NotImplementedError
+    def for_players_in_gameweek(self, gameweek_id, player_ids): raise NotImplementedError
+
+
+class SqlAthleticsRepo:
+    def __init__(self, session) -> None:
+        self.s = session
+
+    def increment_player(self, player_id, delta): raise NotImplementedError
+    def increment_manager(self, manager_id, delta): raise NotImplementedError
+    def increment_manager_player(self, manager_id, player_id, delta): raise NotImplementedError
