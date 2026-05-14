@@ -15,23 +15,33 @@ from fmlwc.core.enums import (
     AuctionRoundStatus,
     BidStatus,
     EligibilityRestriction,
+    GameweekPhase,
+    GameweekStatus,
     Position,
+    RealEventType,
     TransferWindowStatus,
 )
 from fmlwc.persistence.db import create_all, make_engine, make_session_factory, session_scope
 from fmlwc.persistence.models import (
     AuctionRound,
     EligibilityRecord,
+    Fixture,
+    Gameweek,
+    Lineup,
     Manager,
     Player,
     TransferWindow,
 )
 from fmlwc.persistence.sql_repos import (
+    SqlAthleticsRepo,
     SqlAuctionResultRepo,
     SqlAuctionRoundRepo,
     SqlBidRepo,
     SqlEligibilityRepo,
+    SqlFixtureRepo,
+    SqlGameweekRepo,
     SqlManagerRepo,
+    SqlMatchEventRepo,
     SqlPlayerRepo,
     SqlSubmissionRepo,
     SqlTransferRepo,
@@ -496,3 +506,284 @@ class TestSqlEligibilityRepo:
         repo.add(1, 11, EligibilityRestriction.RELEASED_LIFETIME, None)
         assert len(repo.list_for_player(10, NOW)) == 1
         assert len(repo.list_for_player(11, NOW)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Helpers for match tests
+# ---------------------------------------------------------------------------
+
+def _make_gameweek(session, *, id=1, index=1,
+                   phase=GameweekPhase.GROUP,
+                   status=GameweekStatus.PENDING) -> Gameweek:
+    gw = Gameweek(
+        id=id, index=index, phase=phase,
+        lineup_deadline=datetime(2026, 6, 10),
+        status=status,
+    )
+    session.add(gw)
+    session.flush()
+    return gw
+
+
+def _make_fixture(session, *, id=1, gameweek_id=1,
+                  home_manager_id=1, away_manager_id=2) -> Fixture:
+    f = Fixture(
+        id=id, gameweek_id=gameweek_id,
+        home_manager_id=home_manager_id,
+        away_manager_id=away_manager_id,
+    )
+    session.add(f)
+    session.flush()
+    return f
+
+
+def _make_lineup(session, *, fixture_id=1, manager_id=1,
+                 starters: list[dict]) -> Lineup:
+    lu = Lineup(
+        fixture_id=fixture_id,
+        manager_id=manager_id,
+        starters=starters,
+        posted_at=datetime(2026, 6, 10),
+    )
+    session.add(lu)
+    session.flush()
+    return lu
+
+
+# ---------------------------------------------------------------------------
+# SqlGameweekRepo
+# ---------------------------------------------------------------------------
+
+class TestSqlGameweekRepo:
+    def test_get(self, session):
+        _make_gameweek(session, id=1, index=1)
+        repo = SqlGameweekRepo(session)
+        gw = repo.get(1)
+        assert gw.index == 1
+        assert gw.status is GameweekStatus.PENDING
+
+    def test_set_status(self, session):
+        _make_gameweek(session, id=1)
+        repo = SqlGameweekRepo(session)
+        repo.set_status(1, GameweekStatus.LIVE)
+        assert repo.get(1).status is GameweekStatus.LIVE
+
+    def test_set_status_missing_raises(self, session):
+        repo = SqlGameweekRepo(session)
+        with pytest.raises(KeyError):
+            repo.set_status(99, GameweekStatus.LIVE)
+
+    def test_fixtures_for(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_gameweek(session, id=1)
+        _make_gameweek(session, id=2, index=2)
+        _make_fixture(session, id=1, gameweek_id=1)
+        _make_fixture(session, id=2, gameweek_id=1, home_manager_id=2, away_manager_id=1)
+        _make_fixture(session, id=3, gameweek_id=2)
+        repo = SqlGameweekRepo(session)
+        fixtures = repo.fixtures_for(1)
+        assert len(fixtures) == 2
+        assert all(f.gameweek_id == 1 for f in fixtures)
+
+    def test_fixtures_for_empty(self, session):
+        _make_gameweek(session, id=1)
+        repo = SqlGameweekRepo(session)
+        assert repo.fixtures_for(1) == []
+
+
+# ---------------------------------------------------------------------------
+# SqlFixtureRepo
+# ---------------------------------------------------------------------------
+
+class TestSqlFixtureRepo:
+    def test_get(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_gameweek(session, id=1)
+        _make_fixture(session, id=5, gameweek_id=1)
+        repo = SqlFixtureRepo(session)
+        f = repo.get(5)
+        assert f.home_manager_id == 1
+        assert f.away_manager_id == 2
+
+    def test_lineup_for_found(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_gameweek(session, id=1)
+        _make_fixture(session, id=1, gameweek_id=1)
+        _make_lineup(session, fixture_id=1, manager_id=1,
+                     starters=[{"player_id": 10, "slot_position": "F"}])
+        repo = SqlFixtureRepo(session)
+        lu = repo.lineup_for(1, 1)
+        assert lu is not None
+        assert lu.manager_id == 1
+
+    def test_lineup_for_missing_returns_none(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_gameweek(session, id=1)
+        _make_fixture(session, id=1, gameweek_id=1)
+        repo = SqlFixtureRepo(session)
+        assert repo.lineup_for(1, 1) is None
+
+    def test_player_manager_map(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_gameweek(session, id=1)
+        _make_fixture(session, id=1, gameweek_id=1,
+                      home_manager_id=1, away_manager_id=2)
+        _make_lineup(session, fixture_id=1, manager_id=1,
+                     starters=[{"player_id": 10, "slot_position": "F"},
+                                {"player_id": 11, "slot_position": "M"}])
+        _make_lineup(session, fixture_id=1, manager_id=2,
+                     starters=[{"player_id": 20, "slot_position": "G"}])
+        repo = SqlFixtureRepo(session)
+        mapping = repo.player_manager_map(gameweek_id=1)
+        assert mapping == {10: 1, 11: 1, 20: 2}
+
+    def test_player_manager_map_multiple_fixtures(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_manager(session, id=3, name="M3")
+        _make_manager(session, id=4, name="M4")
+        _make_gameweek(session, id=1)
+        _make_fixture(session, id=1, gameweek_id=1,
+                      home_manager_id=1, away_manager_id=2)
+        _make_fixture(session, id=2, gameweek_id=1,
+                      home_manager_id=3, away_manager_id=4)
+        _make_lineup(session, fixture_id=1, manager_id=1,
+                     starters=[{"player_id": 10, "slot_position": "F"}])
+        _make_lineup(session, fixture_id=2, manager_id=3,
+                     starters=[{"player_id": 30, "slot_position": "D"}])
+        repo = SqlFixtureRepo(session)
+        mapping = repo.player_manager_map(gameweek_id=1)
+        assert mapping[10] == 1
+        assert mapping[30] == 3
+
+
+# ---------------------------------------------------------------------------
+# SqlMatchEventRepo
+# ---------------------------------------------------------------------------
+
+class TestSqlMatchEventRepo:
+    def _setup(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_player(session, id=10)
+        _make_gameweek(session, id=1, status=GameweekStatus.LIVE)
+
+    def test_add_returns_id(self, session):
+        self._setup(session)
+        repo = SqlMatchEventRepo(session)
+        eid = repo.add(1, 10, RealEventType.GOAL)
+        assert isinstance(eid, int)
+
+    def test_add_persists_fields(self, session):
+        self._setup(session)
+        repo = SqlMatchEventRepo(session)
+        eid = repo.add(1, 10, RealEventType.ASSIST,
+                       minute=67, is_extra_time=False, is_shootout=False)
+        ev = session.get(__import__(
+            "fmlwc.persistence.models", fromlist=["MatchEvent"]
+        ).MatchEvent, eid)
+        assert ev.gameweek_id == 1
+        assert ev.player_id == 10
+        assert ev.event_type is RealEventType.ASSIST
+        assert ev.minute == 67
+
+    def test_remove_deletes_event(self, session):
+        self._setup(session)
+        repo = SqlMatchEventRepo(session)
+        eid = repo.add(1, 10, RealEventType.GOAL)
+        repo.remove(eid)
+        evs = repo.for_players_in_gameweek(1, {10})
+        assert evs == []
+
+    def test_for_players_in_gameweek_filters_player(self, session):
+        self._setup(session)
+        _make_player(session, id=11)
+        repo = SqlMatchEventRepo(session)
+        repo.add(1, 10, RealEventType.GOAL)
+        repo.add(1, 11, RealEventType.YELLOW)
+        evs = repo.for_players_in_gameweek(1, {10})
+        assert len(evs) == 1
+        assert evs[0].player_id == 10
+
+    def test_for_players_in_gameweek_filters_gameweek(self, session):
+        self._setup(session)
+        _make_gameweek(session, id=2, index=2)
+        repo = SqlMatchEventRepo(session)
+        repo.add(1, 10, RealEventType.GOAL)
+        repo.add(2, 10, RealEventType.GOAL)
+        evs = repo.for_players_in_gameweek(1, {10})
+        assert len(evs) == 1
+
+
+# ---------------------------------------------------------------------------
+# SqlAthleticsRepo
+# ---------------------------------------------------------------------------
+
+class TestSqlAthleticsRepo:
+    def test_increment_player_creates_row(self, session):
+        _make_player(session, id=10)
+        repo = SqlAthleticsRepo(session)
+        repo.increment_player(10, {"goals": 2, "assists": 1})
+        from fmlwc.persistence.models import PlayerAthletics
+        row = session.get(PlayerAthletics, 10)
+        assert row.goals == 2
+        assert row.assists == 1
+        assert row.yellows == 0
+
+    def test_increment_player_accumulates(self, session):
+        _make_player(session, id=10)
+        repo = SqlAthleticsRepo(session)
+        repo.increment_player(10, {"goals": 1})
+        repo.increment_player(10, {"goals": 2})
+        from fmlwc.persistence.models import PlayerAthletics
+        assert session.get(PlayerAthletics, 10).goals == 3
+
+    def test_increment_manager_creates_row(self, session):
+        _make_manager(session, id=1)
+        repo = SqlAthleticsRepo(session)
+        repo.increment_manager(1, {"goals": 3})
+        from fmlwc.persistence.models import ManagerStats
+        row = session.get(ManagerStats, 1)
+        assert row.goals == 3
+
+    def test_increment_manager_accumulates(self, session):
+        _make_manager(session, id=1)
+        repo = SqlAthleticsRepo(session)
+        repo.increment_manager(1, {"reds": 1})
+        repo.increment_manager(1, {"reds": 1})
+        from fmlwc.persistence.models import ManagerStats
+        assert session.get(ManagerStats, 1).reds == 2
+
+    def test_increment_manager_player_creates_row(self, session):
+        _make_manager(session, id=1)
+        _make_player(session, id=10)
+        repo = SqlAthleticsRepo(session)
+        repo.increment_manager_player(1, 10, {"goals": 1, "assists": 2})
+        from fmlwc.persistence.models import ManagerPlayerAthletics
+        row = session.get(ManagerPlayerAthletics, (1, 10))
+        assert row.goals == 1
+        assert row.assists == 2
+
+    def test_increment_manager_player_separate_rows_per_manager(self, session):
+        _make_manager(session, id=1, name="M1")
+        _make_manager(session, id=2, name="M2")
+        _make_player(session, id=10)
+        repo = SqlAthleticsRepo(session)
+        repo.increment_manager_player(1, 10, {"goals": 2})
+        repo.increment_manager_player(2, 10, {"goals": 1})
+        from fmlwc.persistence.models import ManagerPlayerAthletics
+        assert session.get(ManagerPlayerAthletics, (1, 10)).goals == 2
+        assert session.get(ManagerPlayerAthletics, (2, 10)).goals == 1
+
+    def test_create_all_includes_new_tables(self, engine):
+        from sqlalchemy import inspect
+        tables = inspect(engine).get_table_names()
+        assert "match_events" in tables
+        assert "player_athletics" in tables
+        assert "manager_stats" in tables
+        assert "manager_player_athletics" in tables

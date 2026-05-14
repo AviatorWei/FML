@@ -62,6 +62,11 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# FMLWC dev database (created by make db-init)
+*.db
+*.db-shm
+*.db-wal
+
 # Flask stuff:
 instance/
 .webassets-cache

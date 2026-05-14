@@ -58,6 +58,164 @@ fmlwc/
 3. 实装真实事件导入器（UEFA/Whoscored 适配器）。
 4. 用 Alembic 替换 `db.create_all`。
 
+## SQLite setup
+
+### Quick start
+
+```bash
+# 1. Install dependencies (conda env must already exist — see environment.yml)
+make env-update
+
+# 2. Create the database file and apply the full schema
+make db-init           # creates fmlwc.db
+make db-init DB=my.db  # custom path
+
+# 3. Open the interactive SQLite shell
+make db-shell          # opens fmlwc.db
+make db-shell DB=my.db # custom path
+
+# Reset (drop and recreate) an existing database
+make db-reset
+```
+
+The `sqlite3` binary used is the one bundled in the conda env
+(`anaconda3/envs/fmlwc/bin/sqlite3`). If you want to call it directly:
+
+```bash
+~/anaconda3/envs/fmlwc/bin/sqlite3 fmlwc.db
+```
+
+For in-memory use (tests / demos) pass `"sqlite:///:memory:"` to
+`make_engine` instead of a file path.
+
+### Shell usage
+
+Once inside the `sqlite3` shell, useful dot-commands:
+
+```
+.tables                   -- list all tables
+.schema match_events      -- DDL for one table
+.headers on               -- show column names in results
+.mode column              -- align columns
+.mode box                 -- box-drawing borders (sqlite3 ≥ 3.37)
+.quit                     -- exit
+```
+
+Common queries for this schema:
+
+```sql
+-- All managers and their current balances
+SELECT id, display_name, balance FROM managers ORDER BY balance DESC;
+
+-- Active roster for manager 1
+SELECT p.name, p.position, p.real_team, r.acquired_price
+FROM roster_entries r
+JOIN players p ON p.id = r.player_id
+WHERE r.manager_id = 1 AND r.released_at IS NULL;
+
+-- Events for gameweek 1
+SELECT p.name, e.event_type, e.minute, e.is_extra_time, e.is_shootout
+FROM match_events e
+JOIN players p ON p.id = e.player_id
+WHERE e.gameweek_id = 1
+ORDER BY e.minute;
+
+-- Group standings snapshot (goals and points per manager)
+SELECT m.display_name, pa.goals, pa.assists, pa.yellows, pa.reds
+FROM player_athletics pa
+JOIN players p ON p.id = pa.player_id
+JOIN roster_entries r ON r.player_id = p.id AND r.released_at IS NULL
+JOIN managers m ON m.id = r.manager_id
+ORDER BY pa.goals DESC;
+
+-- Per-manager team aggregate
+SELECT m.display_name, ms.goals, ms.assists, ms.reds
+FROM manager_stats ms
+JOIN managers m ON m.id = ms.manager_id
+ORDER BY ms.goals DESC;
+
+-- Which players contributed to manager 1's stats and when
+SELECT p.name, mpa.goals, mpa.assists, mpa.yellows
+FROM manager_player_athletics mpa
+JOIN players p ON p.id = mpa.player_id
+WHERE mpa.manager_id = 1
+ORDER BY mpa.goals DESC;
+
+-- Fixture results for gameweek 1
+SELECT hm.display_name AS home, am.display_name AS away,
+       r.home_goals, r.away_goals, r.outcome
+FROM match_results r
+JOIN fixtures f ON f.id = r.fixture_id
+JOIN managers hm ON hm.id = f.home_manager_id
+JOIN managers am ON am.id = f.away_manager_id
+WHERE f.gameweek_id = 1;
+```
+
+### Database file location
+
+| Path | Purpose |
+|---|---|
+| `fmlwc.db` | Default dev/demo database |
+| `sqlite:///:memory:` | Unit tests and one-shot scripts |
+| any path via env var | `make_engine(os.environ["FMLWC_DB_URL"])` |
+
+There is no migration tooling yet — schema changes require recreating the
+file. Production use should adopt Alembic before storing real data.
+
+### Tables created
+
+| Table | Model | Description |
+|---|---|---|
+| `managers` | `Manager` | Participants; holds current balance |
+| `players` | `Player` | Real-world footballers |
+| `roster_entries` | `RosterEntry` | Player↔manager ownership history |
+| `auction_rounds` | `AuctionRound` | Sealed-bid round metadata |
+| `submissions` | `Submission` | One bid sheet per manager per round |
+| `bids` | `Bid` | Individual bid rows with cascade status |
+| `auction_results` | `AuctionResult` | Final award per player per round |
+| `transfer_windows` | `TransferWindow` | Free-sign / trade periods |
+| `free_signs` | `FreeSign` | Free-agent signings within a window |
+| `trades` | `Trade` / `TradeLeg` | Player swap agreements |
+| `releases` | `Release` | Voluntary roster releases |
+| `eligibility_records` | `EligibilityRecord` | Signing restrictions |
+| `gameweeks` | `Gameweek` | Match rounds with phase + status (`PENDING/LIVE/FINALIZED`) |
+| `fixtures` | `Fixture` | A single home-vs-away match within a gameweek |
+| `lineups` | `Lineup` | Manager's submitted starters (JSON) + PK order |
+| `match_events` | `MatchEvent` | Live events keyed by `(gameweek_id, player_id)` |
+| `match_results` | `MatchResult` | Locked score + outcome per fixture |
+| `bonus_awards` | `BonusAward` | Assist/red-card/blue-team/missed-penalty awards |
+| `player_athletics` | `PlayerAthletics` | Career stats per player (season total) |
+| `manager_stats` | `ManagerStats` | Team aggregate stats per manager |
+| `manager_player_athletics` | `ManagerPlayerAthletics` | Per-player breakdown within each manager's historical roster |
+| `roster_snapshots` | `RosterSnapshot` | Knockout pre-match roster freeze |
+| `picks` | `Pick` | Knockout-winner player picks |
+| `injury_adjustments` | `InjuryAdjustment` | Injury-grant roster exceptions |
+
+### Connecting from a script
+
+```python
+from fmlwc.persistence.db import make_engine, make_session_factory, session_scope
+from fmlwc.persistence.sql_repos import SqlManagerRepo, SqlGameweekRepo  # etc.
+
+engine  = make_engine("sqlite:///fmlwc.db")
+factory = make_session_factory(engine)
+
+with session_scope(factory) as session:
+    managers = SqlManagerRepo(session).list_active()
+```
+
+`session_scope` commits on success and rolls back on any exception —
+always use it instead of managing the session manually.
+
+### SQLite pragmas applied automatically
+
+`make_engine` sets two pragmas on every new SQLite connection:
+
+| Pragma | Value | Reason |
+|---|---|---|
+| `foreign_keys` | `ON` | Enforce FK constraints (SQLite ignores them by default) |
+| `journal_mode` | `WAL` | Concurrent reads while a write is in progress |
+
 ## Match event interface
 
 The entry point for live match management is `RoundService` in

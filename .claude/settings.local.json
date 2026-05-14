@@ -28,7 +28,10 @@
       "Bash(echo \"exit: $?\")",
       "Bash(xargs git -C /mnt/d/Claude/Projects/FMLWC rm --cached -r --quiet)",
       "Bash(git -C /mnt/d/Claude/Projects/FMLWC status --short)",
-      "Bash(make test-v *)"
+      "Bash(make test-v *)",
+      "Bash(sqlite3 --version)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/sqlite3 *)",
+      "Bash(make db-init *)"
     ]
   }
 }

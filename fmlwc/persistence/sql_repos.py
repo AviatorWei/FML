@@ -25,18 +25,32 @@ from ..core.enums import (
     AuctionRoundStatus,
     BidStatus,
     EligibilityRestriction,
+    GameweekStatus,
     Position,
+    RealEventType,
 )
 from .models import (
     AuctionResult,
     AuctionRound,
     Bid,
     EligibilityRecord,
+    Fixture,
+    Gameweek,
+    Lineup,
     Manager,
+    ManagerPlayerAthletics,
+    ManagerStats,
+    MatchEvent,
     Player,
+    PlayerAthletics,
     RosterEntry,
     Submission,
     TransferWindow,
+)
+
+_STAT_FIELDS = (
+    "goals", "own_goals", "saved_penalties", "missed_penalties",
+    "assists", "yellows", "second_yellow_reds", "reds",
 )
 
 
@@ -359,4 +373,144 @@ class SqlEligibilityRepo:
             reason=reason,
         )
         self.s.add(record)
+        self.s.flush()
+
+
+# ---------------------------------------------------------------------------
+# Match — gameweek, fixtures, events
+# ---------------------------------------------------------------------------
+
+class SqlGameweekRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def get(self, gameweek_id: int) -> Gameweek:
+        return self.s.get(Gameweek, gameweek_id)  # type: ignore[return-value]
+
+    def set_status(self, gameweek_id: int, status: GameweekStatus) -> None:
+        gw = self.s.get(Gameweek, gameweek_id)
+        if gw is None:
+            raise KeyError(f"Gameweek {gameweek_id} not found")
+        gw.status = status
+        self.s.flush()
+
+    def fixtures_for(self, gameweek_id: int) -> list[Fixture]:
+        stmt = select(Fixture).where(Fixture.gameweek_id == gameweek_id)
+        return list(self.s.scalars(stmt))
+
+
+class SqlFixtureRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def get(self, fixture_id: int) -> Fixture:
+        return self.s.get(Fixture, fixture_id)  # type: ignore[return-value]
+
+    def lineup_for(self, fixture_id: int, manager_id: int) -> Optional[Lineup]:
+        stmt = (
+            select(Lineup)
+            .where(Lineup.fixture_id == fixture_id)
+            .where(Lineup.manager_id == manager_id)
+        )
+        return self.s.scalars(stmt).first()
+
+    def player_manager_map(self, gameweek_id: int) -> dict[int, int]:
+        """Return {player_id: manager_id} for every starter in the gameweek.
+
+        Reads all Lineup rows whose fixture belongs to the gameweek and
+        unpacks the starters JSON.  Used by RoundService to attribute events
+        to the manager who fielded each player at match time.
+        """
+        lineups = list(self.s.scalars(
+            select(Lineup)
+            .join(Fixture, Lineup.fixture_id == Fixture.id)
+            .where(Fixture.gameweek_id == gameweek_id)
+        ))
+        result: dict[int, int] = {}
+        for lineup in lineups:
+            for starter in (lineup.starters or []):
+                pid = starter["player_id"] if isinstance(starter, dict) else starter.player_id
+                result[pid] = lineup.manager_id
+        return result
+
+
+class SqlMatchEventRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def add(
+        self,
+        gameweek_id: int,
+        player_id: int,
+        event_type: RealEventType,
+        *,
+        minute: int | None = None,
+        is_extra_time: bool = False,
+        is_shootout: bool = False,
+    ) -> int:
+        ev = MatchEvent(
+            gameweek_id=gameweek_id,
+            player_id=player_id,
+            event_type=event_type,
+            minute=minute,
+            is_extra_time=is_extra_time,
+            is_shootout=is_shootout,
+        )
+        self.s.add(ev)
+        self.s.flush()
+        return ev.id
+
+    def remove(self, event_id: int) -> None:
+        self.s.execute(delete(MatchEvent).where(MatchEvent.id == event_id))
+        self.s.flush()
+
+    def for_players_in_gameweek(
+        self, gameweek_id: int, player_ids: set[int]
+    ) -> list[MatchEvent]:
+        stmt = (
+            select(MatchEvent)
+            .where(MatchEvent.gameweek_id == gameweek_id)
+            .where(MatchEvent.player_id.in_(player_ids))
+        )
+        return list(self.s.scalars(stmt))
+
+
+# ---------------------------------------------------------------------------
+# Athletics — player, manager aggregate, per-player-per-manager breakdown
+# ---------------------------------------------------------------------------
+
+class SqlAthleticsRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def increment_player(self, player_id: int, delta: dict[str, int]) -> None:
+        row = self.s.get(PlayerAthletics, player_id)
+        if row is None:
+            row = PlayerAthletics(player_id=player_id, **{f: 0 for f in _STAT_FIELDS})
+            self.s.add(row)
+        for field, amount in delta.items():
+            setattr(row, field, getattr(row, field) + amount)
+        self.s.flush()
+
+    def increment_manager(self, manager_id: int, delta: dict[str, int]) -> None:
+        row = self.s.get(ManagerStats, manager_id)
+        if row is None:
+            row = ManagerStats(manager_id=manager_id, **{f: 0 for f in _STAT_FIELDS})
+            self.s.add(row)
+        for field, amount in delta.items():
+            setattr(row, field, getattr(row, field) + amount)
+        self.s.flush()
+
+    def increment_manager_player(
+        self, manager_id: int, player_id: int, delta: dict[str, int]
+    ) -> None:
+        row = self.s.get(ManagerPlayerAthletics, (manager_id, player_id))
+        if row is None:
+            row = ManagerPlayerAthletics(
+                manager_id=manager_id, player_id=player_id,
+                **{f: 0 for f in _STAT_FIELDS},
+            )
+            self.s.add(row)
+        for field, amount in delta.items():
+            setattr(row, field, getattr(row, field) + amount)
         self.s.flush()
