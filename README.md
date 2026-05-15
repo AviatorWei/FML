@@ -216,6 +216,76 @@ always use it instead of managing the session manually.
 | `foreign_keys` | `ON` | Enforce FK constraints (SQLite ignores them by default) |
 | `journal_mode` | `WAL` | Concurrent reads while a write is in progress |
 
+## Round setup
+
+Before live events can be recorded, the gameweek and its fixtures must exist in
+the database and lineups must be submitted.
+
+### 1. Open the gameweek
+
+```python
+from fmlwc.core.enums import GameweekPhase, GameweekStatus
+from fmlwc.persistence.sql_repos import SqlGameweekRepo
+
+with session_scope(factory) as session:
+    gameweeks = SqlGameweekRepo(session)
+    gw_id = gameweeks.create(
+        index=1,
+        phase=GameweekPhase.GROUP,
+        lineup_deadline=deadline,   # naive UTC datetime
+    )
+    gameweeks.set_status(gw_id, GameweekStatus.LIVE)
+```
+
+`create` inserts a `PENDING` gameweek and returns its id. Call `set_status`
+to advance it to `LIVE` once the real matches kick off.
+
+### 2. Persist fixtures
+
+```python
+from fmlwc.persistence.sql_repos import SqlFixtureRepo
+
+with session_scope(factory) as session:
+    fixtures = SqlFixtureRepo(session)
+    for spec in scheduler.group_stage_fixtures(groups)[round_index]:
+        fixtures.create(
+            gw_id,
+            spec.home_manager_id,
+            spec.away_manager_id,
+            group_letter=spec.group_letter,
+        )
+```
+
+Pass `bracket_slot` instead of `group_letter` for knockout rounds.
+
+### 3. Submit lineups
+
+Lineups are validated first, then persisted as a list of
+`{"player_id": int, "slot_position": str}` dicts — the serialised form of
+`ValidatedLineup.accepted`.
+
+```python
+from fmlwc.persistence.sql_repos import SqlFixtureRepo
+from fmlwc.domain.lineup.validator import LineupValidator
+
+with session_scope(factory) as session:
+    fixtures = SqlFixtureRepo(session)
+    result = lineup_validator.validate(manager_id, raw_starters)
+    fixtures.save_lineup(
+        fixture_id,
+        manager_id,
+        starters=[
+            {"player_id": s.player_id, "slot_position": s.slot_position.value}
+            for s in result.accepted
+        ],
+        posted_at=now,
+    )
+```
+
+Re-submitting before the deadline replaces the previous lineup.
+The optional `pk_order` argument accepts a list of player ids for penalty
+shootout resolution (knockout rounds only).
+
 ## Match event interface
 
 The entry point for live match management is `RoundService` in

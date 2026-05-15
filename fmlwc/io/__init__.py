@@ -1,1 +1,1 @@
-"""fmlwc.io — file-based input adapters (xlsx, csv, …)."""
+"""fmlwc.io — file-based input/output adapters (xlsx, csv, …)."""

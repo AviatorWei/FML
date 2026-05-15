@@ -1,10 +1,10 @@
-"""ORM: transfer windows, free signs, trades, releases."""
+"""ORM: transfer windows, free signs, trades, releases, dismissals."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ...core.enums import TradeSide, TradeStatus, TransferWindowStatus
@@ -69,3 +69,19 @@ class Release(Base):
     posted_at: Mapped[datetime] = mapped_column(DateTime)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     effective: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Dismissal(Base):
+    """Admin-forced removal of a player from a manager's roster.
+
+    Unlike Release there is no revoke window — the effect is immediate.
+    The eligibility block (DISMISSED_LIFETIME) prevents the dismissing
+    manager from re-signing the player for the rest of the season.
+    """
+
+    __tablename__ = "dismissals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    manager_id: Mapped[int] = mapped_column(ForeignKey("managers.id"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
+    dismissed_at: Mapped[datetime] = mapped_column(DateTime)
+    reason: Mapped[str | None] = mapped_column(String(256), nullable=True)

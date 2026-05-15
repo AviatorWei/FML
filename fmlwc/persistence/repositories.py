@@ -17,6 +17,7 @@ from ..core.enums import (
     AuctionRoundStatus,
     BidStatus,
     EligibilityRestriction,
+    GameweekPhase,
     GameweekStatus,
     Position,
     RealEventType,
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
     AuctionResult = m.AuctionResult
     EligibilityRecord = m.EligibilityRecord
     TransferWindow = m.TransferWindow
+    Dismissal = m.Dismissal
     Gameweek = m.Gameweek
     Fixture = m.Fixture
     Lineup = m.Lineup
@@ -48,6 +50,7 @@ else:
     AuctionResult = Any
     EligibilityRecord = Any
     TransferWindow = Any
+    Dismissal = Any
     Gameweek = Any
     Fixture = Any
     Lineup = Any
@@ -151,6 +154,20 @@ class EligibilityRepo(Protocol):
     ) -> None: ...
 
 
+class DismissalRepo(Protocol):
+    def create(
+        self,
+        manager_id: int,
+        player_id: int,
+        dismissed_at: datetime,
+        reason: str | None = None,
+    ) -> int: ...
+    """Persist a Dismissal audit record; returns its id."""
+
+    def for_manager(self, manager_id: int) -> list["Dismissal"]: ...
+    def for_player(self, player_id: int) -> list["Dismissal"]: ...
+
+
 # ===========================================================================
 # SQLAlchemy skeleton implementations (not yet implemented)
 # ===========================================================================
@@ -229,21 +246,52 @@ class SqlEligibilityRepo:
     def add(self, manager_id, player_id, restriction, valid_until, reason=None): raise NotImplementedError
 
 
+class SqlDismissalRepo:
+    def __init__(self, session) -> None:
+        self.s = session
+
+    def create(self, manager_id, player_id, dismissed_at, reason=None): raise NotImplementedError
+    def for_manager(self, manager_id): raise NotImplementedError
+    def for_player(self, player_id): raise NotImplementedError
+
+
 class GameweekRepo(Protocol):
     def get(self, gameweek_id: int) -> "Gameweek": ...
+    def create(self, index: int, phase: GameweekPhase, lineup_deadline: datetime) -> int: ...
+    """Insert a new PENDING gameweek; returns its id."""
     def set_status(self, gameweek_id: int, status: GameweekStatus) -> None: ...
     def fixtures_for(self, gameweek_id: int) -> list["Fixture"]: ...
 
 
 class FixtureRepo(Protocol):
     def get(self, fixture_id: int) -> "Fixture": ...
+    def create(
+        self,
+        gameweek_id: int,
+        home_manager_id: int,
+        away_manager_id: int,
+        *,
+        group_letter: str | None = None,
+        bracket_slot: str | None = None,
+    ) -> int: ...
+    """Insert one fixture; returns its id."""
+    def save_lineup(
+        self,
+        fixture_id: int,
+        manager_id: int,
+        starters: list[dict],
+        posted_at: datetime,
+        pk_order: list[int] | None = None,
+    ) -> int: ...
+    """Upsert the lineup for (fixture_id, manager_id); returns lineup id.
+
+    starters is a list of {"player_id": int, "slot_position": str} dicts,
+    produced by serialising ValidatedLineup.accepted.
+    Re-submitting before the deadline replaces the previous lineup.
+    """
     def lineup_for(self, fixture_id: int, manager_id: int) -> Optional["Lineup"]: ...
     def player_manager_map(self, gameweek_id: int) -> dict[int, int]: ...
-    """Returns {player_id: manager_id} for every starter across all fixtures in the gameweek.
-
-    Derived by reading Lineup.starters JSON for each fixture in the gameweek.
-    Used by RoundService to attribute events to managers without fixture_id in the API.
-    """
+    """Returns {player_id: manager_id} for every starter across all fixtures in the gameweek."""
 
 
 class MatchEventRepo(Protocol):
@@ -290,6 +338,7 @@ class SqlGameweekRepo:
         self.s = session
 
     def get(self, gameweek_id): raise NotImplementedError
+    def create(self, index, phase, lineup_deadline): raise NotImplementedError
     def set_status(self, gameweek_id, status): raise NotImplementedError
     def fixtures_for(self, gameweek_id): raise NotImplementedError
 
@@ -299,6 +348,10 @@ class SqlFixtureRepo:
         self.s = session
 
     def get(self, fixture_id): raise NotImplementedError
+    def create(self, gameweek_id, home_manager_id, away_manager_id, *,
+               group_letter=None, bracket_slot=None): raise NotImplementedError
+    def save_lineup(self, fixture_id, manager_id, starters, posted_at,
+                    pk_order=None): raise NotImplementedError
     def lineup_for(self, fixture_id, manager_id): raise NotImplementedError
     def player_manager_map(self, gameweek_id): raise NotImplementedError
 

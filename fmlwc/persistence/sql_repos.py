@@ -25,6 +25,7 @@ from ..core.enums import (
     AuctionRoundStatus,
     BidStatus,
     EligibilityRestriction,
+    GameweekPhase,
     GameweekStatus,
     Position,
     RealEventType,
@@ -387,6 +388,17 @@ class SqlGameweekRepo:
     def get(self, gameweek_id: int) -> Gameweek:
         return self.s.get(Gameweek, gameweek_id)  # type: ignore[return-value]
 
+    def create(self, index: int, phase: GameweekPhase, lineup_deadline: datetime) -> int:
+        gw = Gameweek(
+            index=index,
+            phase=phase,
+            lineup_deadline=_dt(lineup_deadline),
+            status=GameweekStatus.PENDING,
+        )
+        self.s.add(gw)
+        self.s.flush()
+        return gw.id
+
     def set_status(self, gameweek_id: int, status: GameweekStatus) -> None:
         gw = self.s.get(Gameweek, gameweek_id)
         if gw is None:
@@ -405,6 +417,57 @@ class SqlFixtureRepo:
 
     def get(self, fixture_id: int) -> Fixture:
         return self.s.get(Fixture, fixture_id)  # type: ignore[return-value]
+
+    def create(
+        self,
+        gameweek_id: int,
+        home_manager_id: int,
+        away_manager_id: int,
+        *,
+        group_letter: str | None = None,
+        bracket_slot: str | None = None,
+    ) -> int:
+        f = Fixture(
+            gameweek_id=gameweek_id,
+            home_manager_id=home_manager_id,
+            away_manager_id=away_manager_id,
+            group_letter=group_letter,
+            bracket_slot=bracket_slot,
+        )
+        self.s.add(f)
+        self.s.flush()
+        return f.id
+
+    def save_lineup(
+        self,
+        fixture_id: int,
+        manager_id: int,
+        starters: list[dict],
+        posted_at: datetime,
+        pk_order: list[int] | None = None,
+    ) -> int:
+        stmt = (
+            select(Lineup)
+            .where(Lineup.fixture_id == fixture_id)
+            .where(Lineup.manager_id == manager_id)
+        )
+        existing = self.s.scalars(stmt).first()
+        if existing is not None:
+            existing.starters = starters
+            existing.pk_order = pk_order
+            existing.posted_at = _dt(posted_at)
+            self.s.flush()
+            return existing.id
+        lu = Lineup(
+            fixture_id=fixture_id,
+            manager_id=manager_id,
+            starters=starters,
+            pk_order=pk_order,
+            posted_at=_dt(posted_at),
+        )
+        self.s.add(lu)
+        self.s.flush()
+        return lu.id
 
     def lineup_for(self, fixture_id: int, manager_id: int) -> Optional[Lineup]:
         stmt = (

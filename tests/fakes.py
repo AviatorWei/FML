@@ -329,6 +329,45 @@ class FakeAuctionResultRepo:
         return [r for r in self._results if r.round_id == round_id]
 
 
+@dataclass
+class FakeDismissal:
+    id: int
+    manager_id: int
+    player_id: int
+    dismissed_at: datetime
+    reason: str | None = None
+
+
+class FakeDismissalRepo:
+    def __init__(self) -> None:
+        self._records: list[FakeDismissal] = []
+        self._next_id = 1
+
+    def create(
+        self,
+        manager_id: int,
+        player_id: int,
+        dismissed_at: datetime,
+        reason: str | None = None,
+    ) -> int:
+        rec = FakeDismissal(
+            id=self._next_id,
+            manager_id=manager_id,
+            player_id=player_id,
+            dismissed_at=dismissed_at,
+            reason=reason,
+        )
+        self._records.append(rec)
+        self._next_id += 1
+        return rec.id
+
+    def for_manager(self, manager_id: int) -> list[FakeDismissal]:
+        return [r for r in self._records if r.manager_id == manager_id]
+
+    def for_player(self, player_id: int) -> list[FakeDismissal]:
+        return [r for r in self._records if r.player_id == player_id]
+
+
 class FakeTransferRepo:
     def __init__(self) -> None:
         self.windows: list[FakeTransferWindow] = []
