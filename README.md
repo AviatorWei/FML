@@ -216,6 +216,117 @@ always use it instead of managing the session manually.
 | `foreign_keys` | `ON` | Enforce FK constraints (SQLite ignores them by default) |
 | `journal_mode` | `WAL` | Concurrent reads while a write is in progress |
 
+## 球员列表初始化
+
+在拍卖开始前，`players` 表需要用真实球员数据初始化。
+`scripts/generate_player_list.py` 负责从 Transfermarkt 球队阵容页爬取数据并写入数据库；
+爬虫核心逻辑在 `fmlwc/io/player_list_generator.py` 中，HTTP + HTML 解析部分留为 stub，可按需替换。
+
+### 快速上手
+
+```bash
+# 查看帮助
+python scripts/generate_player_list.py --help
+
+# 干跑（仅打印，不写库）— 先跑这个确认 stub 实现后数据正确
+python scripts/generate_player_list.py --dry-run
+
+# 顺序 ID（1, 2, 3 …），写入默认 fmlwc.db
+python scripts/generate_player_list.py --id-mode seq
+
+# 从 Transfermarkt URL 提取 ID，写入自定义路径
+python scripts/generate_player_list.py --id-mode url --db path/to.db
+
+# 只爬部分球队
+python scripts/generate_player_list.py --teams GER,ENG,FRA --dry-run
+
+# 顺序 ID 从 1001 开始（如需为新赛季追加球员时避免冲突）
+python scripts/generate_player_list.py --id-mode seq --seq-start 1001
+```
+
+### ID 策略
+
+| `--id-mode` | 说明 | 适用场景 |
+|---|---|---|
+| `seq`（默认） | 按 (球队顺序, 号码, 姓名) 排序后，从 `--seq-start`（默认 1）开始连续编号 | 与现有竞标 xlsx 文件中的短号码（1号、2号…）保持一致 |
+| `url` | 从 Transfermarkt 球员主页 URL 中提取数字 ID（`/spieler/17259` → `17259`） | 需要与外部数据源 ID 对齐时使用；ID 跨赛季稳定唯一 |
+
+### 实现爬虫
+
+`_scrape_team_page` 函数目前为 stub，调用时抛出 `NotImplementedError`。
+打开 `fmlwc/io/player_list_generator.py`，将函数体替换为真实实现（函数内注释中已提供 `requests` + `BeautifulSoup` 的参考片段）：
+
+```python
+# fmlwc/io/player_list_generator.py — _scrape_team_page 示例骨架
+import requests
+from bs4 import BeautifulSoup
+
+def _scrape_team_page(config: TeamConfig, http_session=None) -> list[RawPlayer]:
+    session = http_session or requests.Session()
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; FMLWC-scraper/0.1)"}
+    resp = session.get(config.squad_url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    players = []
+    for row in soup.select("table.items tbody tr.odd, table.items tbody tr.even"):
+        name_tag = row.select_one("td.hauptlink a")
+        pos_tag  = row.select_one("td.posrela")
+        no_tag   = row.select_one("td.rn_nummer")
+        val_tag  = row.select_one("td.rechts")
+        if not name_tag:
+            continue
+        players.append(RawPlayer(
+            name=name_tag.get_text(strip=True),
+            jersey_no=int(no_tag.get_text(strip=True)) if no_tag else None,
+            position_raw=pos_tag.get_text(strip=True) if pos_tag else "",
+            real_team=config.code,
+            market_value_eur_m=_parse_market_value(val_tag.get_text(strip=True) if val_tag else ""),
+            profile_url="https://www.transfermarkt.com" + name_tag["href"],
+        ))
+    return players
+```
+
+### 位置映射
+
+Transfermarkt 使用英文全称位置标签；`normalise_position()` 将其统一映射到引擎内部的 `G / D / M / F`。
+
+| Transfermarkt 标签 | 缩写 | FMLWC |
+|---|---|---|
+| Goalkeeper | GK | **G** |
+| Centre-Back, Left-Back, Right-Back | CB, LB, RB | **D** |
+| Central Midfield, Defensive Midfield, Attacking Midfield, Left/Right Midfield | CM, CDM, CAM, LM, RM | **M** |
+| Centre-Forward, Left Winger, Right Winger, Second Striker | CF, LW, RW, SS | **F** |
+| G, D, M, F（已是引擎格式） | — | 直传 |
+
+无法识别的位置标签默认映射为 **M**（中场），不会中断导入；
+若爬取到陌生标签，建议在 `_POSITION_MAP` 中补充对应条目。
+
+### 注入目标
+
+| 目标 | 函数 | 适用场景 |
+|---|---|---|
+| SQLite 数据库 | `inject_into_session(players, session)` | 生产/演示，调用方负责 `session.commit()` |
+| `FakePlayerRepo` | `inject_into_fake_repo(players, repo)` | 测试和 `run_auction*.py` 演示脚本 |
+
+`inject_into_session` 使用 merge-or-insert 策略：相同 id 的行会原地更新，不存在则插入。
+重复运行脚本是安全的（幂等）。
+
+### Euro 2020 球队列表
+
+`EURO_2020_TEAMS` 常量预置了 24 支参赛队的 Transfermarkt 阵容页 URL。
+如需为其他赛事生成球员列表，传入自定义 `list[TeamConfig]` 即可：
+
+```python
+from fmlwc.io.player_list_generator import TeamConfig, PlayerListGenerator, IdMode
+
+my_teams = [
+    TeamConfig("ENG", "https://www.transfermarkt.com/england/kader/verein/3/saison_id/2022"),
+    TeamConfig("FRA", "https://www.transfermarkt.com/frankreich/kader/verein/3377/saison_id/2022"),
+]
+generator = PlayerListGenerator(my_teams, id_mode=IdMode.SEQUENTIAL)
+players = generator.generate()   # list[tuple[int, RawPlayer]]
+```
+
 ## Round setup
 
 Before live events can be recorded, the gameweek and its fixtures must exist in
