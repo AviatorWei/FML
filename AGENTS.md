@@ -15,8 +15,8 @@ A rule-configurable fantasy football engine aligned with FME-2021 (Euro 2020/202
 **Numeric source of truth**: [`config/rules.example.yaml`](./config/rules.example.yaml).
 Never hardcode game numbers — always read from `GameRules`.
 
-Status: algorithmic core complete (12 modules), DB-orchestration layer is TODO.
-**100/100 tests pass** as of last commit.
+Status: algorithmic core + DB layer complete; orchestration layer is TODO.
+**292 tests pass** as of last commit.
 
 ---
 
@@ -24,17 +24,24 @@ Status: algorithmic core complete (12 modules), DB-orchestration layer is TODO.
 
 ```
 fmlwc/core/         — enums, exceptions, config (no external deps; everyone may import)
-fmlwc/persistence/  — SQLAlchemy: base, db, models/{7 files}, repositories
+fmlwc/persistence/  — SQLAlchemy: base, db, models/{7 files}, repositories, sql_repos
 fmlwc/domain/       — business services
     eligibility.py  — single chokepoint for "may X sign Y at T?" (cross-cutting)
     auction/        — bids, cascade, tiebreaker, service     (sub-package: 4 files)
-    transfer/       — free_sign, trade, release              (sub-package: 3 files)
-    lineup/         — validator, defaults                    (sub-package: 2 files)
-    match/          — events, scoring, bonuses, schedule, group_stage, knockout, pick
-    prize.py        — qualifier + advancement prizes
-    injury.py       — UEFA squad-removal exception
-    season.py       — top-level state machine (TODO)
+    transfer/       — free_sign ✓, trade ✗, release ✗        (sub-package: 3 files)
+    lineup/         — validator ✓, defaults ✗                (sub-package: 2 files)
+    match/          — events, scoring, bonuses, schedule, group_stage, knockout, pick ✗, round
+    prize.py        — qualifier + advancement prizes ✓
+    injury.py       — UEFA squad-removal exception ✗
+    season.py       — top-level state machine ✗
+fmlwc/io/           — xlsx reader/writer, player list generator, free-sign interface
+scripts/            — CLI helpers (init_db, free_sign, generate_player_list, run_auction1)
 ```
+
+**Two repo files** — don't confuse them:
+- `persistence/repositories.py` — Protocol definitions + dead-code SQL stubs (the stubs
+  are superseded by sql_repos.py; they exist only as implementation guides).
+- `persistence/sql_repos.py` — **the real SQLAlchemy implementations** (all complete).
 
 Rule of thumb: **only make a sub-package when there's >1 file**.
 
@@ -63,7 +70,7 @@ Don't reintroduce "raw cash units" (1 EUR per integer). The rounding helper
 ## 4. Naming conventions
 
 - Singular for enum-like strings. Don't use plural forms in YAML or code as enum tags.
-  `valid_goal`, NOT `valid_goals`. (Was `fme_goal/fme_goals` historically — renamed.)
+  `valid_goal`, NOT `valid_goals`.
 - Acquisition pathways live in `enums.AcquisitionVia`: `AUCTION / FREE_SIGN / TRADE / KO_PICK / INJURY_GRANT`.
 - Eligibility restrictions in `enums.EligibilityRestriction` — do NOT add new types
   without updating `EligibilityService.check`'s dispatch.
@@ -120,14 +127,33 @@ for all four signing pathways. Order:
 Restriction semantics:
 - `AUCTION_OTHERS_NEXT_WINDOW`, `FREE_SIGN_SAME_WINDOW`, `KNOCKOUT_PICK_BLACKLIST` —
   the record's `manager_id` is the *winner/holder*. Everyone ELSE is blocked.
-- `RELEASED_LIFETIME` — the record's `manager_id` is the releaser. THEY are blocked.
+- `RELEASED_LIFETIME`, `DISMISSED_LIFETIME` — the record's `manager_id` is the actor.
+  THEY are blocked from re-signing.
 
-If you add a new restriction type, you must update both `check()`'s dispatch and
+If you add a new restriction type, update both `check()`'s dispatch and the
 `record_*` writer helpers.
 
 ---
 
-## 7. How to run tests
+## 7. Free sign service (`transfer/free_sign.py`) — COMPLETE
+
+The free-sign lifecycle mirrors the release lifecycle:
+
+```
+propose()    →  pending (revoked=False, effective=False)
+revoke()     →  cancelled (within rules.transfer.revoke_window_seconds)
+commit_due() →  effective=True; balance -=fee; roster updated; FREE_SIGN_SAME_WINDOW block written
+```
+
+Non-raising wrappers: `try_propose()` / `try_revoke()` return `FreeSignResult(success, free_sign_id, error)`.
+`scripts/free_sign.py` exposes `build_service(session=None)` for both CLI and web use.
+
+Cooldown (rule 三.6): any non-revoked sign within `window.free_sign_period_seconds` blocks a new one.
+Revoked signs are excluded from the cooldown count.
+
+---
+
+## 8. How to run tests
 
 Two ways:
 
@@ -139,10 +165,22 @@ python tests/_runner.py
 pytest tests/
 ```
 
-Tests use **in-memory fakes** from `tests/fakes.py` (FakeManagerRepo, FakePlayerRepo,
-FakeEligibilityRepo, FakeBidRepo, FakeTransferRepo). They implement the same Protocol
-shapes as `persistence.repositories`. **Don't write tests against SqlAlchemy in unit
-tests** — keep that for an integration test suite (TODO).
+Tests use **in-memory fakes** from `tests/fakes.py`. Fakes available:
+
+| Class | Covers |
+|---|---|
+| `FakeManagerRepo` | roster, balance |
+| `FakePlayerRepo` | `is_free_agent` via `_signed` set; call `mark_signed(id)` |
+| `FakeEligibilityRepo` | eligibility records |
+| `FakeBidRepo` | bids per submission |
+| `FakeSubmissionRepo` | submissions |
+| `FakeAuctionRoundRepo` | round status |
+| `FakeAuctionResultRepo` | auction results |
+| `FakeTransferRepo` | windows (has `free_sign_period_seconds` field) |
+| `FakeFreeSignRepo` | free sign rows |
+| `FakeDismissalRepo` | dismissal records |
+
+**Don't write unit tests against SQLAlchemy** — keep that for `tests/test_sql_integration.py`.
 
 `tests/sample_rules.py::default_rules()` is the canonical test config builder. Tests
 that need to tweak one field do `raw_dict()` → mutate dict → `GameRules.from_dict(d)`.
@@ -153,60 +191,125 @@ that need to tweak one field do `raw_dict()` → mutate dict → `GameRules.from
 3. `lineup.validator` — backward sub combinations × misplaced silent-drop
 4. `match.knockout.PkResolver` — exhaustion cases
 5. `prize.PrizeDistributor` — half-up rounding boundaries (0.5, 2.5)
+6. `transfer.release` — once implemented; mirror free_sign test structure
 
 ---
 
-## 8. Pitfalls & gotchas (please don't relearn these)
+## 9. What's TODO (19 stubs remaining)
 
-### Tooling
-- **`Write` tool truncates files around ~150 lines.** When writing a file longer
-  than that, use `cat > file <<'EOF'` (bash heredoc) instead. Symptom: file silently
-  cut mid-line, leading to `SyntaxError: unterminated string literal`.
-- Sometimes `Write` introduces null bytes (`b'\x00'`) into freshly-created files,
-  which makes Python `import` fail with `ValueError: source code string cannot contain null bytes`.
-  If you see this, rewrite the file with bash heredoc.
+### Priority 1 — Transfer window completeness
 
-### Code
-- Don't eagerly re-export domain services from `__init__.py` — most pull SQLAlchemy
-  transitively via `repositories`. Keep `__init__.py` files docstring-only.
-- ORM imports inside `repositories.py` are guarded by `if TYPE_CHECKING:` so the
-  Protocols can be imported without SQLAlchemy. Don't move the imports to module top.
-- `Position.can_play_as()` only allows backward sub: D→M/F, M→F. G and F can never
-  cross-substitute (rule 四.4).
-- Group stage rule 五.4 says "失球数多者排名靠前" — i.e. MORE conceded is better.
-  Don't "fix" this; it's intentional and the tiebreak key is `goals_against_more_first`.
-- Penalty shootouts are excluded from goal counting AND PK scoring
-  (`is_shootout=True` → skip).
+#### `fmlwc/domain/transfer/release.py` (3 stubs — rule 八)
+Mirror of `free_sign.py`. Same propose/revoke/commit_due lifecycle.
+- `propose(manager_id, player_id, posted_at)` → release_id
+  - player must be on manager's active roster
+  - insert `Release` row (revoked=False, effective=False)
+- `revoke(release_id, at)` → enforce `release.revoke_window_seconds`
+- `commit_due(at)` → mark effective; refund `release.refund` (0m by default); if
+  `release.releaser_lifetime_block`, call `eligibility.record_release_block()`
 
-### Config
-- The `m` shorthand in `_as_int` is a no-op identity since the unit migration —
-  `"600m"` → 600, same as `600`. Keep it for backward compat in YAML.
-- `GameRules` is a frozen dataclass tree — never mutate; build a new dict and reload.
+No `FreeSignRepo`-style separate repo needed — use a `ReleaseRepo` Protocol
+(pattern: same 6 methods as `FreeSignRepo`; `Release` ORM model already exists).
+
+#### `fmlwc/domain/transfer/trade.py` (4 stubs — no rule number; game-convention)
+Two-sided swap with optional cash component (controlled by `transfer.trades_allow_cash`).
+
+- `propose(initiator_id, legs, proposed_at)` → trade_id
+  - validate each leg: player on proposer's roster, no cross-eligibility blocks
+  - insert `Trade` (status=PROPOSED) + `TradeLeg` rows
+- `accept(trade_id, at)` → one transaction: re-validate both sides at acceptance time;
+  swap `RosterEntry` rows; adjust balances for cash legs; status→ACCEPTED
+- `reject(trade_id, at)` → status→REJECTED (no state changes)
+- `expire_window_close(window_id, at)` → mark all PROPOSED trades for this window as EXPIRED
+
+Note: `transfer.trades_require_counterparty_accept` gates whether `accept()` is needed
+or if `propose()` is auto-accepted.
 
 ---
 
-## 9. What's TODO (in priority order)
+### Priority 2 — Lineup defaults
 
-1. `fmlwc/persistence/db.py` — `make_engine`, `make_session_factory`, `session_scope`.
-2. SQL implementations of repos (`SqlManagerRepo` etc.) — start with `SqlEligibilityRepo`,
-   smallest and most reused.
-3. `fmlwc/domain/auction/service.py::resolve()` — wires cascade + tiebreaker + balance
-   adjustment + eligibility records into one DB transaction.
-4. `fmlwc/domain/transfer/{free_sign,trade,release}.py` — DB state transitions with
-   15-min revoke windows.
-5. `fmlwc/domain/match/pick.py` — knockout-winner pick (uses `RosterSnapshot`).
-6. `fmlwc/domain/lineup/defaults.py::PreviousRoundStrategy` and `TopValueStrategy`.
-7. `fmlwc/domain/season.py::SeasonOrchestrator` — phase state machine.
-8. Alembic migrations (replace `db.create_all`).
+#### `fmlwc/domain/lineup/defaults.py` (2 stubs — rule 四.8)
+Auto-fill lineups when a manager hasn't submitted before deadline.
 
-When implementing the DB layer, expect:
-- **Single transaction per operation.** `auction.service.resolve` MUST run cascade
-  + tiebreaker + balance adjustments + eligibility writes inside one `session.begin()`.
-- **Snapshot before mutate.** `current_position_counts` and balances passed to the
-  cascade must be the *open-of-resolution* snapshot, not updated as winners are
-  awarded inside the loop.
-- **Idempotency.** `submit()` must overwrite any prior submission for the same
-  (round, manager) tuple per rule 二.2.
+- `PreviousRoundStrategy.fill(manager_id, gameweek_id)` → `list[SlotAssignment]`
+  - query `lineups` for the previous gameweek's fixture for this manager
+  - return the same starters if all players still on active roster; drop released ones
+- `TopValueStrategy.fill(manager_id, gameweek_id)` → `list[SlotAssignment]`
+  - pick highest `market_value` players from roster, respecting `lineup.appearance_caps`
+  - resolve native-position slots only (no backward subs in auto-fill)
+
+Both strategies must return a list that passes `LineupValidator` — validate before returning.
+
+---
+
+### Priority 3 — Knockout phase
+
+#### `fmlwc/domain/match/pick.py` (3 stubs — rule 六.6)
+After a knockout match, the winner may pick one player from the loser's pre-match roster.
+
+- `take_snapshot(fixture_id, manager_id, at)` → snapshot_id
+  - copy current `RosterEntry` rows → `RosterSnapshot` ORM rows keyed by fixture_id
+  - must be called **before** the fixture goes LIVE (season orchestrator responsibility)
+- `pick(fixture_id, winner_manager_id, player_id, at)` → None
+  - verify: fixture is FINALIZED; winner_manager_id is correct winner; player on loser snapshot
+  - `eligibility.assert_allowed(via=KO_PICK, fee=0)` for cross-checks
+  - transfer player: `release_from_roster(loser)` → `add_to_roster(winner, via=KO_PICK, price=0)`
+  - record `KNOCKOUT_PICK_BLACKLIST` eligibility for conflicts
+  - enforce `pick_deadline_seconds` (raise `TransferError` if too late)
+- `expire_unpicked(fixture_id, at)` → None
+  - called by season orchestrator after deadline; no-op if pick already made
+
+---
+
+### Priority 4 — Season orchestrator
+
+#### `fmlwc/domain/season.py` (6 stubs — phase state machine)
+
+Wires all services into a sequenced lifecycle. Each transition must be idempotent
+(re-running is safe) and wrapped in a single DB transaction.
+
+- `begin_auction()` — SETUP → AUCTION: validate managers and player list exist;
+  open round 1 via `AuctionService.open_round()`
+- `begin_transfer(at)` — AUCTION → TRANSFER: close final auction round; open
+  `TransferWindow` row for the configured window spec
+- `begin_group_stage(at)` — TRANSFER → GROUP_STAGE: close transfer window; call
+  `ScheduleService.assign_groups()` + `generate_round_robin()` to create `Gameweek`
+  and `Fixture` rows; set all managers' `group_letter`
+- `advance_to_knockout(at)` — GROUP_STAGE → KNOCKOUT_QF: collect final group standings
+  (via `GroupStandings`); seed bracket; create knockout `Gameweek` + `Fixture` rows;
+  write any eligibility seeds (e.g. `KNOCKOUT_PICK_BLACKLIST` from pick conflicts)
+- `settle_gameweek(gameweek_id, at)` — call default lineups for non-submitters;
+  call `RoundService.finalize_gameweek()`; distribute prizes if applicable;
+  advance phase if last gameweek in current phase
+- `finalise()` — DONE: emit final rankings JSON; run `PrizeDistributor` for any
+  remaining prize pools
+
+---
+
+### Priority 5 — Injury exception
+
+#### `fmlwc/domain/injury.py` (1 stub — rule 九)
+Handles UEFA squad removals mid-tournament.
+
+- `process(player_id, removed_at)` → None
+  - find current owner (if any) via `managers.list_roster` scan or a dedicated query
+  - call `managers.release_from_roster(owner_id, player_id, removed_at)`
+  - if `injury.refund_last_signing_fee`: refund acquisition price to owner's balance
+  - if past the last transfer window AND `injury.grant_extra_free_sign_after_window`:
+    create a one-off `TransferWindow` grant for the affected manager (custom logic TBD)
+  - GK + zero-balance special case: if `injury.gk_zero_balance_grant > 0` and the
+    released player was a GK and the manager's balance == 0, grant emergency funds
+
+---
+
+### Not yet planned (lower priority)
+
+| Item | Notes |
+|---|---|
+| Alembic migrations | Replace `db.create_all` for production use |
+| Integration test suite | SQL transaction tests; currently unit-test only |
+| `repositories.py` dead stubs | The `SqlXxx` classes in repositories.py are superseded by sql_repos.py; safe to delete or leave as documentation |
 
 ---
 
@@ -220,10 +323,35 @@ When implementing the DB layer, expect:
   `persistence.repositories`.
 - Per-rule comments: prefer `# rule 二.5` over re-explaining the rule. Keep
   `RULES.md` as the source.
+- `try_*` wrappers (non-raising, return a `Result` dataclass) belong on services that
+  have a public CLI/web interface. See `FreeSignService.try_propose` as the pattern.
 
 ---
 
-## 11. Quick orientation checklist
+## 11. Pitfalls & gotchas (please don't relearn these)
+
+### Code
+- Don't eagerly re-export domain services from `__init__.py` — most pull SQLAlchemy
+  transitively via `repositories`. Keep `__init__.py` files docstring-only.
+- ORM imports inside `repositories.py` are guarded by `if TYPE_CHECKING:` so the
+  Protocols can be imported without SQLAlchemy. Don't move the imports to module top.
+- `Position.can_play_as()` only allows backward sub: D→M/F, M→F. G and F can never
+  cross-substitute (rule 四.4).
+- Group stage rule 五.4 says "失球数多者排名靠前" — i.e. MORE conceded is better.
+  Don't "fix" this; it's intentional and the tiebreak key is `goals_against_more_first`.
+- Penalty shootouts are excluded from goal counting AND PK scoring
+  (`is_shootout=True` → skip).
+- `FakePlayerRepo.is_free_agent` returns `True` by default (all players free agents).
+  Call `plr_repo.mark_signed(player_id)` in tests that need a non-free-agent scenario.
+
+### Config
+- The `m` shorthand in `_as_int` is a no-op identity since the unit migration —
+  `"600m"` → 600, same as `600`. Keep it for backward compat in YAML.
+- `GameRules` is a frozen dataclass tree — never mutate; build a new dict and reload.
+
+---
+
+## 12. Quick orientation checklist
 
 When you sit down to make a change, ask yourself:
 
@@ -233,9 +361,11 @@ When you sit down to make a change, ask yourself:
 - [ ] New signing pathway? Add an `AcquisitionVia` enum and route through
       `EligibilityService.check`.
 - [ ] New validation result? Extend `BidStatus` enum, NEVER add ad-hoc strings.
+- [ ] New service with CLI/web exposure? Add `try_*` wrappers returning a `Result`
+      dataclass; add a `build_service(session=None)` factory in `scripts/`.
 - [ ] Pure algorithm? Test with fakes; no DB.
-- [ ] DB-touching? Wrap in `session_scope()` (once `db.py` is done) and document
-      what's in the transaction boundary.
+- [ ] DB-touching? Wrap in `session_scope()` and document the transaction boundary.
+- [ ] New `FreeSignRepo`-style repo? Add Protocol to `repositories.py` AND real impl
+      to `sql_repos.py` AND fake to `tests/fakes.py`.
 
-Run `python tests/_runner.py` before claiming done. Should print
-`TOTAL: <N> passed, 0 failed`.
+Run `pytest tests/` before claiming done. All 292 tests must pass.
