@@ -142,6 +142,30 @@ class TransferRepo(Protocol):
     def next_window(self, at: datetime) -> Optional["TransferWindow"]: ...
 
 
+class FreeSignRepo(Protocol):
+    def create(
+        self,
+        window_id: int,
+        manager_id: int,
+        player_id: int,
+        fee: int,
+        posted_at: datetime,
+    ) -> int: ...
+    """Insert a new FreeSign row; returns the new free_sign_id."""
+
+    def get(self, free_sign_id: int) -> "FreeSign": ...
+    def pending_in_window(self, window_id: int) -> list["FreeSign"]: ...
+    """All non-revoked, non-effective rows in this window (for commit_due)."""
+
+    def for_manager_in_window(
+        self, manager_id: int, window_id: int
+    ) -> list["FreeSign"]: ...
+    """All rows (including revoked) for this manager in this window (for cooldown check)."""
+
+    def mark_revoked(self, free_sign_id: int) -> None: ...
+    def mark_effective(self, free_sign_id: int) -> None: ...
+
+
 class EligibilityRepo(Protocol):
     def list_for_player(self, player_id: int, at: datetime) -> list["EligibilityRecord"]: ...
     def add(
@@ -236,6 +260,18 @@ class SqlTransferRepo:
     def current_window(self, at): raise NotImplementedError
     def previous_window(self, at): raise NotImplementedError
     def next_window(self, at): raise NotImplementedError
+
+
+class SqlFreeSignRepo:
+    def __init__(self, session) -> None:
+        self.s = session
+
+    def create(self, window_id, manager_id, player_id, fee, posted_at): raise NotImplementedError
+    def get(self, free_sign_id): raise NotImplementedError
+    def pending_in_window(self, window_id): raise NotImplementedError
+    def for_manager_in_window(self, manager_id, window_id): raise NotImplementedError
+    def mark_revoked(self, free_sign_id): raise NotImplementedError
+    def mark_effective(self, free_sign_id): raise NotImplementedError
 
 
 class SqlEligibilityRepo:

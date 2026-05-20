@@ -544,6 +544,104 @@ ManagerPlayerAthletics (manager_1, player_A)  goals = 2
 ManagerPlayerAthletics (manager_2, player_A)  goals = 1
 ```
 
+## 自由签
+
+自由签（rule 三）允许玩家在转会窗口内以 10m 签约一名自由球员。
+`fmlwc/domain/transfer/free_sign.py` 实现完整的业务逻辑；
+`scripts/free_sign.py` 提供命令行入口和可导入的 `build_service` 工厂，供 Web 端调用。
+
+### 生命周期
+
+```
+propose()  →  pending   (revoked=False, effective=False)
+revoke()   →  cancelled (revoked=True,  fee not charged)
+commit_due() → effective (revoked=False, effective=True, fee charged, roster updated)
+```
+
+`commit_due` 需要定期调用（如每分钟一次），或在反悔窗口到期后立即触发。
+
+### 命令行
+
+```bash
+# 提交一笔自由签（默认使用当前 UTC 时间）
+python scripts/free_sign.py propose --manager 1 --player 42
+
+# 指定时间戳
+python scripts/free_sign.py propose --manager 1 --player 42 --at "2026-06-04T10:00:00Z"
+
+# 反悔（15 分钟内有效）
+python scripts/free_sign.py revoke --id 7
+
+# 提交所有已过反悔期的挂单
+python scripts/free_sign.py commit
+
+# 使用自定义 DB / 规则文件
+python scripts/free_sign.py --db sqlite:///my.db --rules config/rules.yaml propose --manager 1 --player 42
+```
+
+### Python shell
+
+```python
+from scripts.free_sign import build_service
+from datetime import datetime, timezone
+
+svc = build_service()   # 从 config/rules.example.yaml 读取 DB URL
+
+result = svc.try_propose(manager_id=1, player_id=42,
+                         posted_at=datetime.now(tz=timezone.utc))
+if result.success:
+    print(f"待生效，free_sign_id={result.free_sign_id}")
+else:
+    print(f"拒绝：{result.error}")
+
+# 提交挂单
+committed = svc.commit_due(datetime.now(tz=timezone.utc))
+svc._session.commit()
+```
+
+### Web 端集成（FastAPI 示例）
+
+```python
+from scripts.free_sign import build_service
+from fmlwc.persistence.db import make_session_factory, session_scope
+
+@app.post("/free-sign/propose")
+def propose(body: ProposeRequest, session: Session = Depends(get_session)):
+    svc = build_service(session=session)   # 复用请求级 session
+    result = svc.try_propose(body.manager_id, body.player_id,
+                             posted_at=datetime.now(tz=timezone.utc))
+    if not result.success:
+        raise HTTPException(status_code=422, detail=result.error)
+    return {"free_sign_id": result.free_sign_id}
+```
+
+传入现有 `session` 时，`build_service` 不自管理事务——由框架的依赖注入负责 commit / rollback。
+
+### 验证规则（rule 三.3）
+
+| 检查 | 错误类型 |
+|---|---|
+| 转会窗口未开放 | `TransferError` |
+| 球员已被签约（非自由球员） | `TransferError` |
+| 同一冷却期内已有未撤销的自由签（rule 三.6） | `TransferError` |
+| 大名单总人数已达上限 | `EligibilityError` |
+| 该位置人数已达上限 | `EligibilityError` |
+| 余额 < 10m | `EligibilityError` |
+| `FREE_SIGN_SAME_WINDOW` / 其他资格限制 | `EligibilityError` |
+
+`try_propose` / `try_revoke` 捕获以上所有异常，返回 `FreeSignResult(success, free_sign_id, error)`，不会向上抛出。
+
+### 冷却期（rule 三.6）
+
+每个玩家在 `transfer.windows[i].free_sign_period_seconds`（通常 3600–86400 秒）内只能完成一笔有效自由签。
+判定基准：**发帖时间**，而非生效时间。已撤销的自由签不计入冷却。
+
+### 签约后资格封锁（rule 三.7）
+
+`commit_due` 生效时，若 `transfer.same_window_block_after_free_sign: true`，
+会向 `eligibility_records` 写入 `FREE_SIGN_SAME_WINDOW` 记录，有效期至本窗口关闭。
+其他所有玩家在同一窗口内失去签约该球员的资格。
+
 ## 参考
 
 - [`RULES.md`](./RULES.md) — FME-2021 规则原文

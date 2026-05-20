@@ -104,6 +104,19 @@ class FakeTransferWindow:
     id: int
     opens_at: datetime
     closes_at: datetime
+    free_sign_period_seconds: int = 86400  # 24 h default
+
+
+@dataclass
+class FakeFreeSign:
+    id: int
+    window_id: int
+    manager_id: int
+    player_id: int
+    fee: int
+    posted_at: datetime
+    revoked: bool = False
+    effective: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +184,7 @@ class FakeManagerRepo:
 class FakePlayerRepo:
     def __init__(self) -> None:
         self.players: dict[int, FakePlayer] = {}
+        self._signed: set[int] = set()  # player_ids currently on some roster
 
     def add(self, p: FakePlayer) -> FakePlayer:
         self.players[p.id] = p
@@ -180,7 +194,10 @@ class FakePlayerRepo:
         return self.players[player_id]
 
     def is_free_agent(self, player_id: int, at: datetime) -> bool:
-        return True
+        return player_id not in self._signed
+
+    def mark_signed(self, player_id: int) -> None:
+        self._signed.add(player_id)
 
 
 class FakeEligibilityRepo:
@@ -366,6 +383,51 @@ class FakeDismissalRepo:
 
     def for_player(self, player_id: int) -> list[FakeDismissal]:
         return [r for r in self._records if r.player_id == player_id]
+
+
+class FakeFreeSignRepo:
+    def __init__(self) -> None:
+        self._by_id: dict[int, FakeFreeSign] = {}
+        self._next_id = 1
+
+    def create(
+        self,
+        window_id: int,
+        manager_id: int,
+        player_id: int,
+        fee: int,
+        posted_at: datetime,
+    ) -> int:
+        fid = self._next_id
+        self._next_id += 1
+        self._by_id[fid] = FakeFreeSign(
+            id=fid, window_id=window_id, manager_id=manager_id,
+            player_id=player_id, fee=fee, posted_at=posted_at,
+        )
+        return fid
+
+    def get(self, free_sign_id: int) -> FakeFreeSign:
+        return self._by_id[free_sign_id]
+
+    def pending_in_window(self, window_id: int) -> list[FakeFreeSign]:
+        return [
+            fs for fs in self._by_id.values()
+            if fs.window_id == window_id and not fs.revoked and not fs.effective
+        ]
+
+    def for_manager_in_window(
+        self, manager_id: int, window_id: int
+    ) -> list[FakeFreeSign]:
+        return [
+            fs for fs in self._by_id.values()
+            if fs.manager_id == manager_id and fs.window_id == window_id
+        ]
+
+    def mark_revoked(self, free_sign_id: int) -> None:
+        self._by_id[free_sign_id].revoked = True
+
+    def mark_effective(self, free_sign_id: int) -> None:
+        self._by_id[free_sign_id].effective = True
 
 
 class FakeTransferRepo:

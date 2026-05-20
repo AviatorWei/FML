@@ -36,6 +36,7 @@ from .models import (
     Bid,
     EligibilityRecord,
     Fixture,
+    FreeSign,
     Gameweek,
     Lineup,
     Manager,
@@ -576,4 +577,75 @@ class SqlAthleticsRepo:
             self.s.add(row)
         for field, amount in delta.items():
             setattr(row, field, getattr(row, field) + amount)
+        self.s.flush()
+
+
+# ---------------------------------------------------------------------------
+# Transfer — free signs
+# ---------------------------------------------------------------------------
+
+class SqlFreeSignRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def create(
+        self,
+        window_id: int,
+        manager_id: int,
+        player_id: int,
+        fee: int,
+        posted_at: datetime,
+    ) -> int:
+        row = FreeSign(
+            window_id=window_id,
+            manager_id=manager_id,
+            player_id=player_id,
+            fee=fee,
+            posted_at=_dt(posted_at),
+            revoked=False,
+            effective=False,
+        )
+        self.s.add(row)
+        self.s.flush()
+        return row.id
+
+    def get(self, free_sign_id: int) -> FreeSign:
+        row = self.s.get(FreeSign, free_sign_id)
+        if row is None:
+            raise KeyError(f"FreeSign {free_sign_id} not found")
+        return row
+
+    def pending_in_window(self, window_id: int) -> list[FreeSign]:
+        stmt = (
+            select(FreeSign)
+            .where(FreeSign.window_id == window_id)
+            .where(FreeSign.revoked.is_(False))
+            .where(FreeSign.effective.is_(False))
+        )
+        return list(self.s.scalars(stmt))
+
+    def for_manager_in_window(
+        self, manager_id: int, window_id: int
+    ) -> list[FreeSign]:
+        stmt = (
+            select(FreeSign)
+            .where(FreeSign.manager_id == manager_id)
+            .where(FreeSign.window_id == window_id)
+        )
+        return list(self.s.scalars(stmt))
+
+    def mark_revoked(self, free_sign_id: int) -> None:
+        self.s.execute(
+            update(FreeSign)
+            .where(FreeSign.id == free_sign_id)
+            .values(revoked=True)
+        )
+        self.s.flush()
+
+    def mark_effective(self, free_sign_id: int) -> None:
+        self.s.execute(
+            update(FreeSign)
+            .where(FreeSign.id == free_sign_id)
+            .values(effective=True)
+        )
         self.s.flush()

@@ -32,7 +32,8 @@
       "Bash(sqlite3 --version)",
       "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/sqlite3 *)",
       "Bash(make db-init *)",
-      "Bash(~/miniconda3/envs/fmlwc/bin/python *)"
+      "Bash(~/miniconda3/envs/fmlwc/bin/python *)",
+      "Bash(awk *)"
     ]
   }
 }
