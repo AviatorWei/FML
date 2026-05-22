@@ -544,42 +544,102 @@ ManagerPlayerAthletics (manager_1, player_A)  goals = 2
 ManagerPlayerAthletics (manager_2, player_A)  goals = 1
 ```
 
-## 自由签
+## 手动操作
 
-自由签（rule 三）允许玩家在转会窗口内以 10m 签约一名自由球员。
-`fmlwc/domain/transfer/free_sign.py` 实现完整的业务逻辑；
-`scripts/free_sign.py` 提供命令行入口和可导入的 `build_service` 工厂，供 Web 端调用。
+赛季编排（Season orchestrator）尚未实现时，可通过以下命令手动完成各阶段操作。
+所有脚本均从项目根目录运行；DB 路径和规则文件路径可通过 `--db` / `--rules` 覆盖。
 
-### 生命周期
+### 前置：创建转会窗口
 
-```
-propose()  →  pending   (revoked=False, effective=False)
-revoke()   →  cancelled (revoked=True,  fee not charged)
-commit_due() → effective (revoked=False, effective=True, fee charged, roster updated)
-```
-
-`commit_due` 需要定期调用（如每分钟一次），或在反悔窗口到期后立即触发。
-
-### 命令行
+自由签必须在开放的转会窗口内进行。在 season orchestrator 就绪前可手动插入：
 
 ```bash
-# 提交一笔自由签（默认使用当前 UTC 时间）
+~/anaconda3/envs/fmlwc/bin/sqlite3 fmlwc.db \
+  "INSERT INTO transfer_windows (opens_at, closes_at, free_sign_period_seconds, status)
+   VALUES ('2026-06-03 00:00:00','2026-06-07 00:00:00',86400,'OPEN');"
+```
+
+| 字段 | 说明 |
+|---|---|
+| `opens_at` / `closes_at` | 窗口起止时间（SQLite 存储为无时区 UTC） |
+| `free_sign_period_seconds` | 冷却期长度（秒）；86400 = 24 小时 |
+| `status` | `OPEN` 立即生效；`PENDING` 暂不开放 |
+
+---
+
+### 自由签（rule 三）
+
+`scripts/free_sign.py` 是自由签的完整操作入口，支持单笔和批量两种模式。
+
+#### 生命周期
+
+```
+propose()    →  pending   (revoked=False, effective=False)
+revoke()     →  cancelled (revoked=True,  fee not charged)
+commit_due() →  effective (effective=True, balance -=10m, roster updated)
+```
+
+`commit_due` 需要在反悔窗口（默认 15 分钟）到期后调用，可手动触发或定时执行。
+
+#### 单笔操作
+
+```bash
+# 提交一笔自由签（使用当前 UTC 时间）
 python scripts/free_sign.py propose --manager 1 --player 42
 
-# 指定时间戳
+# 指定时间戳（用于补录历史操作）
 python scripts/free_sign.py propose --manager 1 --player 42 --at "2026-06-04T10:00:00Z"
 
-# 反悔（15 分钟内有效）
+# 反悔（必须在反悔窗口内）
 python scripts/free_sign.py revoke --id 7
 
 # 提交所有已过反悔期的挂单
 python scripts/free_sign.py commit
 
-# 使用自定义 DB / 规则文件
+# 自定义 DB / 规则文件
 python scripts/free_sign.py --db sqlite:///my.db --rules config/rules.yaml propose --manager 1 --player 42
 ```
 
-### Python shell
+#### 批量操作
+
+先生成模板，再填写后批量导入：
+
+```bash
+# 1. 生成 CSV 模板
+python scripts/free_sign.py batch --template > signs.csv
+
+# 2. 编辑 signs.csv（格式见下方）
+
+# 3. 导入
+python scripts/free_sign.py batch signs.csv
+```
+
+**CSV 格式：** `manager_id,player_id[,at]`
+- `at` 列可省略，省略时使用执行时刻的 UTC 时间
+- `#` 开头的行为注释，空行忽略
+
+```csv
+# manager_id,player_id[,at]
+1,42
+2,17,2026-06-04T10:00:00Z
+3,99
+```
+
+批量执行输出示例：
+
+```
+Line   Mgr    Plr  Result
+--------------------------------------------------
+   1     1     42  [ok] id=1
+   2     2     17  [ok] id=2
+   3     3     99  [denied] no transfer window open at this time
+--------------------------------------------------
+Total: 3  ok=2  denied=1
+```
+
+有任意一行被拒绝时，脚本以非零退出码退出；已成功的行仍会写入 DB（逐行提交）。
+
+#### Python shell / 程序化调用
 
 ```python
 from scripts.free_sign import build_service
@@ -594,20 +654,18 @@ if result.success:
 else:
     print(f"拒绝：{result.error}")
 
-# 提交挂单
 committed = svc.commit_due(datetime.now(tz=timezone.utc))
 svc._session.commit()
 ```
 
-### Web 端集成（FastAPI 示例）
+#### Web 端集成（FastAPI 示例）
 
 ```python
 from scripts.free_sign import build_service
-from fmlwc.persistence.db import make_session_factory, session_scope
 
 @app.post("/free-sign/propose")
 def propose(body: ProposeRequest, session: Session = Depends(get_session)):
-    svc = build_service(session=session)   # 复用请求级 session
+    svc = build_service(session=session)   # 复用请求级 session，由框架管理事务
     result = svc.try_propose(body.manager_id, body.player_id,
                              posted_at=datetime.now(tz=timezone.utc))
     if not result.success:
@@ -615,9 +673,7 @@ def propose(body: ProposeRequest, session: Session = Depends(get_session)):
     return {"free_sign_id": result.free_sign_id}
 ```
 
-传入现有 `session` 时，`build_service` 不自管理事务——由框架的依赖注入负责 commit / rollback。
-
-### 验证规则（rule 三.3）
+#### 验证规则（rule 三.3）
 
 | 检查 | 错误类型 |
 |---|---|
@@ -629,18 +685,11 @@ def propose(body: ProposeRequest, session: Session = Depends(get_session)):
 | 余额 < 10m | `EligibilityError` |
 | `FREE_SIGN_SAME_WINDOW` / 其他资格限制 | `EligibilityError` |
 
-`try_propose` / `try_revoke` 捕获以上所有异常，返回 `FreeSignResult(success, free_sign_id, error)`，不会向上抛出。
+`try_propose` / `try_revoke` 捕获以上所有异常，返回 `FreeSignResult(success, free_sign_id, error)`，不向上抛出。
 
-### 冷却期（rule 三.6）
+冷却期（rule 三.6）：每个玩家在 `free_sign_period_seconds` 内只能提交一笔未撤销的自由签；已撤销的不计入冷却。
 
-每个玩家在 `transfer.windows[i].free_sign_period_seconds`（通常 3600–86400 秒）内只能完成一笔有效自由签。
-判定基准：**发帖时间**，而非生效时间。已撤销的自由签不计入冷却。
-
-### 签约后资格封锁（rule 三.7）
-
-`commit_due` 生效时，若 `transfer.same_window_block_after_free_sign: true`，
-会向 `eligibility_records` 写入 `FREE_SIGN_SAME_WINDOW` 记录，有效期至本窗口关闭。
-其他所有玩家在同一窗口内失去签约该球员的资格。
+生效后（rule 三.7）：若 `transfer.same_window_block_after_free_sign: true`，`commit_due` 会写入 `FREE_SIGN_SAME_WINDOW` 资格封锁，同一窗口内其他玩家不得签约该球员。
 
 ## 参考
 

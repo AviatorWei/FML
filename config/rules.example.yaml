@@ -128,3 +128,9 @@ injury:
   refund_last_signing_fee: true
   grant_extra_free_sign_after_window: true
   gk_zero_balance_grant: 1
+
+# 存储 -----------------------------------------------------------------
+storage:
+  driver: sqlite
+  url: "sqlite:///fmlwc.db"
+  echo: false

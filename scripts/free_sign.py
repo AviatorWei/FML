@@ -10,9 +10,13 @@ Shell usage
     python scripts/free_sign.py commit                   # commit all due signs now
     python scripts/free_sign.py commit --at "2026-06-04T10:20:00Z"
 
+    # Batch propose from a CSV file (see --template for format)
+    python scripts/free_sign.py batch signs.csv
+    python scripts/free_sign.py batch --template          # print a sample CSV and exit
+
 Programmatic usage (Python shell / web handler)
 -----------------------------------------------
-    from scripts.free_sign import build_service, FreeSignResult
+    from scripts.free_sign import build_service
 
     svc = build_service()                              # reads DB + rules from config
     result = svc.try_propose(manager_id=1, player_id=42, posted_at=datetime.now(tz=timezone.utc))
@@ -36,9 +40,12 @@ Web handler example (FastAPI / Flask)
 from __future__ import annotations
 
 import argparse
+import csv
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
@@ -46,7 +53,20 @@ sys.path.insert(0, str(ROOT))
 from fmlwc.core.config import GameRules
 from fmlwc.domain.eligibility import EligibilityService
 from fmlwc.domain.transfer.free_sign import FreeSignResult, FreeSignService
-from fmlwc.persistence.db import create_all, make_engine, make_session_factory, session_scope
+from fmlwc.persistence.db import create_all, make_engine, make_session_factory
+
+
+_BATCH_TEMPLATE = """\
+# FMLWC 自由签批量导入模板
+# 格式：manager_id,player_id[,at]
+# - at 列可选；留空则使用运行时 UTC 时间
+# - # 开头的行为注释，空行忽略
+#
+# manager_id  player_id  at (ISO 8601, 可省略)
+1,42
+2,17,2026-06-04T10:00:00Z
+3,99
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +135,6 @@ def build_service(
         eligibility=elig_svc,
     )
 
-    # Attach the raw session so callers can commit if needed
     svc._session = _session        # type: ignore[attr-defined]
     svc._owns_session = _owns_session  # type: ignore[attr-defined]
     return svc
@@ -133,11 +152,67 @@ def _now() -> datetime:
 def _parse_at(s: str | None) -> datetime:
     if s is None:
         return _now()
-    s = s.replace("Z", "+00:00")
+    s = s.strip().replace("Z", "+00:00")
     dt = datetime.fromisoformat(s)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+# ---------------------------------------------------------------------------
+# Batch CSV parsing
+# ---------------------------------------------------------------------------
+
+@dataclass
+class BatchRow:
+    line_no: int
+    manager_id: int
+    player_id: int
+    at: datetime
+
+
+@dataclass
+class BatchRowError:
+    line_no: int
+    raw: str
+    error: str
+
+
+def _parse_batch_csv(path: Path) -> tuple[list[BatchRow], list[BatchRowError]]:
+    """Parse a batch CSV file into valid rows and parse errors.
+
+    CSV format (no header required):
+        manager_id, player_id [, at]
+
+    Lines starting with ``#`` and blank lines are skipped.
+    ``at`` is optional; omitting it uses the time the file is parsed.
+    """
+    rows: list[BatchRow] = []
+    errors: list[BatchRowError] = []
+    default_at = _now()
+
+    with path.open(newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for line_no, raw_cols in enumerate(reader, start=1):
+            # Reconstruct raw line for error messages
+            raw = ",".join(raw_cols).strip()
+            if not raw or raw.startswith("#"):
+                continue
+
+            cols = [c.strip() for c in raw_cols]
+
+            try:
+                if len(cols) < 2:
+                    raise ValueError("need at least manager_id and player_id")
+                manager_id = int(cols[0])
+                player_id  = int(cols[1])
+                at = _parse_at(cols[2] if len(cols) >= 3 and cols[2] else None) \
+                     if len(cols) >= 3 else default_at
+                rows.append(BatchRow(line_no, manager_id, player_id, at))
+            except (ValueError, IndexError) as exc:
+                errors.append(BatchRowError(line_no, raw, str(exc)))
+
+    return rows, errors
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     # propose
-    sp = sub.add_parser("propose", help="Propose a free sign")
+    sp = sub.add_parser("propose", help="Propose a single free sign")
     sp.add_argument("--manager", type=int, required=True, metavar="ID")
     sp.add_argument("--player",  type=int, required=True, metavar="ID")
     sp.add_argument("--at", metavar="ISO8601",
@@ -175,6 +250,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--at", metavar="ISO8601", help="Timestamp (default: now UTC)"
     )
 
+    # batch
+    sp = sub.add_parser("batch", help="Propose multiple free signs from a CSV file")
+    grp = sp.add_mutually_exclusive_group(required=True)
+    grp.add_argument("file", nargs="?", metavar="CSV_FILE",
+                     help="Path to the batch CSV file")
+    grp.add_argument("--template", action="store_true",
+                     help="Print a sample CSV template and exit")
+
     return p
 
 
@@ -182,8 +265,13 @@ def main() -> None:
     args = build_parser().parse_args()
     at = _parse_at(getattr(args, "at", None))
 
+    # --template: no DB needed
+    if args.cmd == "batch" and args.template:
+        print(_BATCH_TEMPLATE, end="")
+        return
+
     svc = build_service(db_url=args.db, rules_path=args.rules)
-    session = svc._session  # type: ignore[attr-defined]
+    session = svc._session   # type: ignore[attr-defined]
     owns    = svc._owns_session  # type: ignore[attr-defined]
 
     try:
@@ -208,6 +296,9 @@ def main() -> None:
             count = svc.commit_due(at)
             print(f"[ok] committed {count} free sign(s)")
 
+        elif args.cmd == "batch":
+            _run_batch(svc, Path(args.file))
+
         session.commit()
 
     except Exception:
@@ -216,6 +307,46 @@ def main() -> None:
     finally:
         if owns:
             session.close()
+
+
+def _run_batch(svc: FreeSignService, path: Path) -> None:
+    """Process a batch CSV: propose each row, print a result table, exit non-zero if any denied."""
+    if not path.exists():
+        print(f"[error] file not found: {path}", file=sys.stderr)
+        sys.exit(1)
+
+    rows, parse_errors = _parse_batch_csv(path)
+
+    if parse_errors:
+        print(f"[error] {len(parse_errors)} parse error(s) — fix before retrying:")
+        for e in parse_errors:
+            print(f"  line {e.line_no}: {e.error!r}  ←  {e.raw!r}")
+        sys.exit(1)
+
+    if not rows:
+        print("[warn] no data rows found in file")
+        return
+
+    ok = denied = 0
+    print(f"{'Line':>4}  {'Mgr':>4}  {'Plr':>5}  {'Result'}")
+    print("-" * 50)
+
+    for row in rows:
+        result = svc.try_propose(row.manager_id, row.player_id, row.at)
+        if result.success:
+            ok += 1
+            print(f"{row.line_no:>4}  {row.manager_id:>4}  {row.player_id:>5}  "
+                  f"[ok] id={result.free_sign_id}")
+        else:
+            denied += 1
+            print(f"{row.line_no:>4}  {row.manager_id:>4}  {row.player_id:>5}  "
+                  f"[denied] {result.error}")
+
+    print("-" * 50)
+    print(f"Total: {len(rows)}  ok={ok}  denied={denied}")
+
+    if denied:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
