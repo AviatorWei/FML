@@ -89,6 +89,11 @@ class EligibilityService:
                     return EligibilityVerdict.deny(
                         f"blocked by {t.value} (you released this player)"
                     )
+            elif t is EligibilityRestriction.DISMISSED_LIFETIME:
+                if rec.manager_id == manager_id:
+                    return EligibilityVerdict.deny(
+                        f"blocked by {t.value} (player was dismissed from your team)"
+                    )
         return EligibilityVerdict.ok()
 
     def assert_allowed(self, manager_id, player_id, via, fee, at):
@@ -133,4 +138,14 @@ class EligibilityService:
             restriction=EligibilityRestriction.RELEASED_LIFETIME,
             valid_until=None,
             reason="self-release lifetime block",
+        )
+
+    def record_dismiss_block(self, manager_id: int, player_id: int) -> None:
+        """Admin dismiss: the dismissing manager may not re-sign the player."""
+        self.eligibility.add(
+            manager_id=manager_id,
+            player_id=player_id,
+            restriction=EligibilityRestriction.DISMISSED_LIFETIME,
+            valid_until=None,
+            reason="admin dismissal lifetime block",
         )

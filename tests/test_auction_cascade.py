@@ -173,3 +173,128 @@ def test_existing_invalid_bids_unchanged():
     statuses = {o.bid.player_id: o.status for o in out}
     assert statuses[1] is BidStatus.INVALID_PER_BID  # untouched
     assert statuses[2] is BidStatus.VALID
+
+
+# --- total roster cap loop tests ------------------------------------------
+
+def _cr_outcome(player_id, rank_neg):
+    """A VALID conditional-release bid (rank < 0)."""
+    return ValidationOutcome(
+        RawBid(manager_id=1, player_id=player_id, amount=0, rank_in_position=rank_neg),
+        BidStatus.VALID,
+    )
+
+
+def test_total_roster_cap_no_cr_drops_highest():
+    """Without conditional release: if current_total_roster + acquisitions > total_cap,
+    the most expensive acquisition bids are dropped until the cap holds.
+    total_cap = 20; current_total_roster_count = 19; 2 acq bids -> 21 > 20 -> drop 1."""
+    rules = default_rules()
+    bids = [
+        _outcome(1, 100, 1),   # F, higher amount -> should be dropped
+        _outcome(2, 50, 1),    # M, lower  -> should survive
+    ]
+    ctx = CascadeContext(
+        manager_id=1, balance_at_close=600,
+        current_position_counts={Position.G: 0, Position.D: 0, Position.M: 0, Position.F: 0},
+        bids=bids,
+        bid_positions={1: Position.F, 2: Position.M},
+        current_total_roster_count=19,
+    )
+    out = CascadeInvalidator(rules).run(ctx)
+    statuses = {o.bid.player_id: o.status for o in out}
+    assert statuses[1] is BidStatus.INVALID_BUDGET   # "exceeds total roster cap"
+    assert statuses[2] is BidStatus.VALID
+
+
+def test_total_roster_cap_no_cr_all_dropped_when_full():
+    """Roster already at cap (20/20); any acquisition must be dropped."""
+    rules = default_rules()
+    bids = [_outcome(1, 50, 1)]
+    ctx = CascadeContext(
+        manager_id=1, balance_at_close=600,
+        current_position_counts={Position.G: 0, Position.D: 0, Position.M: 0, Position.F: 0},
+        bids=bids,
+        bid_positions={1: Position.F},
+        current_total_roster_count=20,
+    )
+    out = CascadeInvalidator(rules).run(ctx)
+    assert out[0].status is BidStatus.INVALID_BUDGET
+
+
+def test_total_roster_cap_no_cr_within_cap_unchanged():
+    """current_total_roster + acquisitions == total_cap: no drops needed."""
+    rules = default_rules()
+    bids = [
+        _outcome(1, 100, 1),
+        _outcome(2, 80, 1),
+    ]
+    ctx = CascadeContext(
+        manager_id=1, balance_at_close=600,
+        current_position_counts={Position.G: 0, Position.D: 0, Position.M: 0, Position.F: 0},
+        bids=bids,
+        bid_positions={1: Position.F, 2: Position.M},
+        current_total_roster_count=18,  # 18 + 2 == 20 -> exactly at cap
+    )
+    out = CascadeInvalidator(rules).run(ctx)
+    assert all(o.status is BidStatus.VALID for o in out)
+
+
+def test_total_roster_cap_with_cr_releases_create_room():
+    """With conditional_release enabled: one CR bid frees a slot, so 2 acq + 1 CR at
+    current_count=20 projects to 20+2-1=21 -> one acquisition must drop."""
+    from tests.sample_rules import raw_dict
+    from fmlwc.core import GameRules
+
+    cfg = raw_dict()
+    cfg["auction"]["conditional_release"] = {"enabled": True}
+    rules = GameRules.from_dict(cfg)
+
+    bids = [
+        _outcome(1, 100, 1),    # F  -- higher, drops first
+        _outcome(2, 50, 1),     # M  -- lower, survives
+        _cr_outcome(10, -1),    # conditional release
+    ]
+    ctx = CascadeContext(
+        manager_id=1, balance_at_close=600,
+        current_position_counts={Position.G: 0, Position.D: 0, Position.M: 0, Position.F: 0},
+        bids=bids,
+        bid_positions={1: Position.F, 2: Position.M, 10: Position.D},
+        current_total_roster_count=20,  # 20 + 2 - 1 = 21 -> one drop
+    )
+    out = CascadeInvalidator(rules).run(ctx)
+    statuses = {o.bid.player_id: o.status for o in out}
+    assert statuses[1] is BidStatus.INVALID_BUDGET
+    assert statuses[2] is BidStatus.VALID
+    assert statuses[10] is BidStatus.VALID   # CR bid untouched
+
+
+def test_total_roster_cap_with_cr_enough_room_no_drops():
+    """With conditional_release enabled: 2 CRs free 2 slots; 2 acq at count=20 =>
+    20 + 2 - 2 = 20 -> exactly at cap, no drops needed."""
+    from tests.sample_rules import raw_dict
+    from fmlwc.core import GameRules
+
+    cfg = raw_dict()
+    cfg["auction"]["conditional_release"] = {"enabled": True}
+    rules = GameRules.from_dict(cfg)
+
+    bids = [
+        _outcome(1, 100, 1),
+        _outcome(2, 80, 1),
+        _cr_outcome(10, -1),
+        _cr_outcome(11, -2),
+    ]
+    ctx = CascadeContext(
+        manager_id=1, balance_at_close=600,
+        current_position_counts={Position.G: 0, Position.D: 0, Position.M: 0, Position.F: 0},
+        bids=bids,
+        bid_positions={1: Position.F, 2: Position.M, 10: Position.D, 11: Position.D},
+        current_total_roster_count=20,  # 20 + 2 - 2 = 20 -> ok
+    )
+    out = CascadeInvalidator(rules).run(ctx)
+    statuses = {o.bid.player_id: o.status for o in out}
+    assert statuses[1] is BidStatus.VALID
+    assert statuses[2] is BidStatus.VALID
+    assert statuses[10] is BidStatus.VALID
+    assert statuses[11] is BidStatus.VALID

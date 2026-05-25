@@ -1,0 +1,292 @@
+1   10m  Neuer               G  GER         1号  ITA
+
+1   30m  Rudiger             D  GER         2号  ITA
+1   13m  Rudiger             D  GER         2号  POR
+1   10m  Rudiger             D  GER         2号  GER
+
+1   13m  Tah                 D  GER         4号  TUR
+3   11m  Tah                 D  GER         4号  ESP
+
+1   131m Havertz             M  GER         7号  GEO
+4   120m Havertz             M  GER         7号  GER
+5   101m Havertz             M  GER         7号  NED
+1   52m  Havertz             M  GER         7号  ALB
+3   44m  Havertz             M  GER         7号  TUR
+1   12m  Havertz             M  GER         7号  SUI
+
+3   12m  Kroos               M  GER         8号  POR
+
+1   62m  Fullkrug            F  GER         9号  SCO
+3   31m  Fullkrug            F  GER         9号  ESP
+
+4   15m  Musiala             M  GER         10号 ENG
+3   12m  Musiala             M  GER         10号 SUI
+5   10m  Musiala             M  GER         10号 GER
+
+7   42m  Wirtz               M  GER         17号 SUI
+2   37m  Wirtz               M  GER         17号 ESP
+5   33m  Wirtz               M  GER         17号 TUR
+3   13m  Wirtz               M  GER         17号 ENG
+
+5   10m  Gundogan            M  GER         21号 ENG
+6   10m  Gundogan            M  GER         21号 SCO
+
+1   10m  Gulacsi             G  HUN         27号 HUN
+
+1   172m Szoboszlai          M  HUN         36号 HUN
+1   53m  Szoboszlai          M  HUN         36号 TUR
+
+3   71m  McGinn              M  SCO         71号 HUN
+
+6   23m  McTominay           M  SCO         74号 TUR
+
+3   10m  Akanji              D  SUI         82号 GER
+
+3   10m  Schar               D  SUI         85号 HUN
+
+3   82m  Shaqiri             M  SUI         93号 SCO
+1   40m  Shaqiri             M  SUI         93号 GER
+
+2   32m  Xhaka               M  SUI         97号 ALB
+8   11m  Xhaka               M  SUI         97号 ESP
+
+2   12m  Zuber               M  SUI         99号 SUI
+
+1   10m  E.Berisha           G  ALB         105号 ALB
+
+1   12m  Gvardiol            D  CRO         135号 NED
+2   12m  Gvardiol            D  CRO         135号 SCO
+
+6   10m  Kovacic             M  CRO         145号 GER
+
+3   10m  Kramaric            F  CRO         152号 HUN
+
+1   10m  Donnarumma          G  ITA         157号 ENG
+
+5   10m  Buongiorno          D  ITA         162号 TUR
+
+3   30m  Dimarco             D  ITA         167号 ITA
+1   10m  Dimarco             D  ITA         167号 HUN
+
+7   10m  Barella             M  ITA         170号 GER
+
+2   10m  Retegui             F  ITA         181号 HUN
+
+3   43m  Scamacca            F  ITA         182号 TUR
+
+2   10m  Carvajal            D  ESP         184号 POR
+
+2   73m  Morata              F  ESP         189号 ESP
+2   12m  Morata              F  ESP         189号 SUI
+
+4   13m  Grimaldo            D  ESP         194号 ESP
+2   10m  Grimaldo            D  ESP         194号 HUN
+3   10m  Grimaldo            D  ESP         194号 ENG
+
+1   22m  Rodri               M  ESP         198号 NED
+
+4   32m  Pedri               M  ESP         202号 SUI
+5   31m  Pedri               M  ESP         202号 ESP
+
+7   17m  Oyarzabal           M  ESP         203号 ESP
+
+1   13m  Simon               G  ESP         205号 ESP
+
+2   13m  Christensen         D  DEN         214号 ESP
+
+2   23m  Maehle              D  DEN         218号 TUR
+2   21m  Maehle              D  DEN         218号 NED
+2   15m  Maehle              D  DEN         218号 GEO
+
+4   13m  Vestergaard         D  DEN         220号 ALB
+3   10m  Vestergaard         D  DEN         220号 GEO
+
+2   60m  Hojbjerg            M  DEN         226号 GER
+4   11m  Hojbjerg            M  DEN         226号 GEO
+
+2   31m  Hojlund             F  DEN         231号 GEO
+4   31m  Hojlund             F  DEN         231号 ESP
+
+2   14m  Alexander-Arnold    M  ENG         246号 NED
+
+5   12m  Bellingham          M  ENG         247号 SUI
+
+1   113m Foden               M  ENG         250号 ENG
+2   43m  Foden               M  ENG         250号 POR
+3   31m  Foden               M  ENG         250号 ESP
+2   30m  Foden               M  ENG         250号 ITA
+8   10m  Foden               M  ENG         250号 GER
+
+8   10m  Gordon              M  ENG         251号 GEO
+
+2   115m Saka                M  ENG         254号 ENG
+1   113m Saka                M  ENG         254号 ESP
+8   62m  Saka                M  ENG         254号 SUI
+3   30m  Saka                M  ENG         254号 ITA
+
+1   251m Kane                F  ENG         257号 ENG
+2   220m Kane                F  ENG         257号 GER
+
+1   10m  V.Milinkovic-Savic  G  SRB         261号 SVN
+
+1   10m  Mladenovic          D  SRB         267号 SVN
+
+6   10m  S.Pavlovic          D  SRB         268号 TUR
+
+1   90m  S.Milinkovic-Savic  M  SRB         279号 SVN
+7   14m  S.Milinkovic-Savic  M  SRB         279号 GEO
+6   11m  S.Milinkovic-Savic  M  SRB         279号 ESP
+
+3   21m  Tadic               M  SRB         281号 NED
+
+2   58m  Vlahovic            F  SRB         286号 TUR
+
+2   10m  Oblak               G  SVN         288号 ITA
+
+2   10m  Cerin               M  SVN         299号 SVN
+
+3   10m  Verbic              M  SVN         304号 SVN
+
+1   77m  Sesko               F  SVN         310号 SVN
+
+2   20m  Sporar              F  SVN         311号 SVN
+
+5   52m  Baumgartner         M  AUT         324号 SCO
+6   11m  Baumgartner         M  AUT         324号 GEO
+
+4   30m  Sabitzer            M  AUT         329号 ITA
+
+4   13m  Upamecano           D  FRA         342号 TUR
+
+3   10m  Giroud              F  FRA         347号 GER
+
+1   422m Mbappe              F  FRA         348号 POR
+3   241m Mbappe              F  FRA         348号 NED
+3   220m Mbappe              F  FRA         348号 ITA
+2   102m Mbappe              F  FRA         348号 SCO
+2   31m  Mbappe              F  FRA         348号 ENG
+1   15m  Mbappe              F  FRA         348号 SUI
+
+2   10m  Saliba              D  FRA         355号 GER
+
+1   10m  Clauss              D  FRA         359号 SCO
+
+3   13m  Ake                 D  NED         368号 TUR
+
+3   53m  Simons              M  NED         370号 ALB
+
+1   20m  Weghorst            F  NED         372号 GER
+
+3   58m  Depay               F  NED         373号 GEO
+
+1   101m Frimpong            D  NED         375号 GEO
+1   41m  Frimpong            D  NED         375号 NED
+1   31m  Frimpong            D  NED         375号 ESP
+1   11m  Frimpong            D  NED         375号 ENG
+
+7   23m  Koopmeiners         M  NED         383号 TUR
+5   11m  Koopmeiners         M  NED         383号 GEO
+
+2   30m  Dumfries            D  NED         385号 ITA
+2   11m  Dumfries            D  NED         385号 ENG
+
+1   10m  Szczesny            G  POL         392号 GER
+
+2   12m  Zalewski            D  POL         401号 SVN
+
+4   51m  Zielinski           M  POL         411号 SVN
+
+3   10m  Lewandowski         F  POL         413号 ENG
+
+4   82m  DeBruyne            M  BEL         427号 ALB
+4   53m  DeBruyne            M  BEL         427号 POR
+2   43m  DeBruyne            M  BEL         427号 TUR
+4   31m  DeBruyne            M  BEL         427号 ESP
+1   12m  DeBruyne            M  BEL         427号 SCO
+
+5   53m  Trossard            M  BEL         432号 ALB
+3   40m  Trossard            M  BEL         432号 GER
+4   33m  Trossard            M  BEL         432号 TUR
+3   20m  Trossard            M  BEL         432号 GEO
+2   12m  Trossard            M  BEL         432号 SCO
+
+1   53m  Doku                F  BEL         438号 ALB
+3   52m  Doku                F  BEL         438号 SCO
+
+1   147m Lukaku              F  BEL         439号 GEO
+1   102m Lukaku              F  BEL         439号 ESP
+4   102m Lukaku              F  BEL         439号 SCO
+2   81m  Lukaku              F  BEL         439号 NED
+1   78m  Lukaku              F  BEL         439号 TUR
+
+4   10m  Openda              F  BEL         440号 GER
+
+1   23m  Skriniar            D  SVK         476号 ALB
+
+4   14m  Mudryk              M  UKR         502号 NED
+
+1   60m  Dovbyk              F  UKR         503号 ITA
+4   35m  Dovbyk              F  UKR         503号 TUR
+2   32m  Dovbyk              F  UKR         503号 ALB
+
+2   10m  Sudakov             M  UKR         506号 HUN
+
+2   16m  Zinchenko           D  UKR         509号 ALB
+
+1   10m  Lunin               G  UKR         515号 POR
+
+2   13m  Stanek              G  CZE         521号 TUR
+
+5   10m  Barak               M  CZE         529号 SVN
+
+6   10m  Provod              M  CZE         535号 SVN
+
+6   32m  Soucek              M  CZE         537号 ALB
+5   30m  Soucek              M  CZE         537号 ITA
+
+3   78m  Schick              F  CZE         544号 SVN
+3   55m  Schick              F  CZE         544号 ALB
+1   22m  Schick              F  CZE         544号 NED
+
+1   16m  Mamardashvili       G  GEO         547号 TUR
+1   10m  Mamardashvili       G  GEO         547号 GEO
+1   10m  Mamardashvili       G  GEO         547号 SCO
+
+7   10m  Chakvetadze         M  GEO         557号 SCO
+
+4   207m Kvaratskhelia       M  GEO         560号 HUN
+1   30m  Kvaratskhelia       M  GEO         560号 ITA
+
+4   10m  Mikautadze          F  GEO         569号 GEO
+
+3   16m  Dias                D  POR         574号 ALB
+2   12m  Dias                D  POR         574号 SUI
+
+2   26m  Ronaldo             F  POR         577号 POR
+3   12m  Ronaldo             F  POR         577号 SUI
+
+2   60m  Ramos               F  POR         579号 ITA
+
+8   10m  B.Silva             M  POR         580号 SCO
+
+1   80m  Leao                F  POR         587号 HUN
+
+1   12m  Cancelo             D  POR         590号 SUI
+
+1   10m  Costa               G  POR         592号 NED
+
+3   10m  Ayhan               D  TUR         603号 SVN
+
+1   11m  Guler               M  TUR         608号 POR
+
+4   62m  Yilmaz              M  TUR         609号 SCO
+2   10m  Yilmaz              M  TUR         609号 GEO
+
+7   33m  Calhanoglu          M  TUR         610号 ALB
+8   23m  Calhanoglu          M  TUR         610号 TUR
+
+6   12m  Kokcu               M  TUR         614号 SUI
+
+4   49m  Yildiz              F  TUR         619号 SVN
+4   33m  Yildiz              F  TUR         619号 ALB
+

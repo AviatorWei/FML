@@ -15,7 +15,28 @@
       "Bash(~/anaconda3/bin/conda install *)",
       "Bash(~/anaconda3/envs/fmlwc/bin/pip list *)",
       "Bash(~/anaconda3/bin/conda env *)",
-      "Bash(make test *)"
+      "Bash(make test *)",
+      "Bash(python3 scripts/run_auction1.py)",
+      "Read(//home/aviatorwei/**)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/python3 scripts/run_auction1.py)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/pip install *)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/python3 *)",
+      "Bash(python3 *)",
+      "Bash(git -C /mnt/d/Claude/Projects/FMLWC ls-files --others --ignored --exclude-standard)",
+      "Bash(git -C /mnt/d/Claude/Projects/FMLWC ls-files)",
+      "Bash(git -C /mnt/d/Claude/Projects/FMLWC rm --cached -r --quiet fmlwc/**/__pycache__ fmlwc/__pycache__)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(xargs git -C /mnt/d/Claude/Projects/FMLWC rm --cached -r --quiet)",
+      "Bash(git -C /mnt/d/Claude/Projects/FMLWC status --short)",
+      "Bash(make test-v *)",
+      "Bash(sqlite3 --version)",
+      "Bash(/home/aviatorwei/anaconda3/envs/fmlwc/bin/sqlite3 *)",
+      "Bash(make db-init *)",
+      "Bash(~/miniconda3/envs/fmlwc/bin/python *)",
+      "Bash(awk *)",
+      "Bash(git push *)",
+      "Bash(~/anaconda3/envs/fmlwc/bin/python scripts/free_sign.py batch --template)",
+      "Read(//tmp/**)"
     ]
   }
 }

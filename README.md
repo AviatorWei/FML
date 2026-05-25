@@ -58,6 +58,639 @@ fmlwc/
 3. 实装真实事件导入器（UEFA/Whoscored 适配器）。
 4. 用 Alembic 替换 `db.create_all`。
 
+## SQLite setup
+
+### Quick start
+
+```bash
+# 1. Install dependencies (conda env must already exist — see environment.yml)
+make env-update
+
+# 2. Create the database file and apply the full schema
+make db-init           # creates fmlwc.db
+make db-init DB=my.db  # custom path
+
+# 3. Open the interactive SQLite shell
+make db-shell          # opens fmlwc.db
+make db-shell DB=my.db # custom path
+
+# Reset (drop and recreate) an existing database
+make db-reset
+```
+
+The `sqlite3` binary used is the one bundled in the conda env
+(`anaconda3/envs/fmlwc/bin/sqlite3`). If you want to call it directly:
+
+```bash
+~/anaconda3/envs/fmlwc/bin/sqlite3 fmlwc.db
+```
+
+For in-memory use (tests / demos) pass `"sqlite:///:memory:"` to
+`make_engine` instead of a file path.
+
+### Shell usage
+
+Once inside the `sqlite3` shell, useful dot-commands:
+
+```
+.tables                   -- list all tables
+.schema match_events      -- DDL for one table
+.headers on               -- show column names in results
+.mode column              -- align columns
+.mode box                 -- box-drawing borders (sqlite3 ≥ 3.37)
+.quit                     -- exit
+```
+
+Common queries for this schema:
+
+```sql
+-- All managers and their current balances
+SELECT id, display_name, balance FROM managers ORDER BY balance DESC;
+
+-- Active roster for manager 1
+SELECT p.name, p.position, p.real_team, r.acquired_price
+FROM roster_entries r
+JOIN players p ON p.id = r.player_id
+WHERE r.manager_id = 1 AND r.released_at IS NULL;
+
+-- Events for gameweek 1
+SELECT p.name, e.event_type, e.minute, e.is_extra_time, e.is_shootout
+FROM match_events e
+JOIN players p ON p.id = e.player_id
+WHERE e.gameweek_id = 1
+ORDER BY e.minute;
+
+-- Group standings snapshot (goals and points per manager)
+SELECT m.display_name, pa.goals, pa.assists, pa.yellows, pa.reds
+FROM player_athletics pa
+JOIN players p ON p.id = pa.player_id
+JOIN roster_entries r ON r.player_id = p.id AND r.released_at IS NULL
+JOIN managers m ON m.id = r.manager_id
+ORDER BY pa.goals DESC;
+
+-- Per-manager team aggregate
+SELECT m.display_name, ms.goals, ms.assists, ms.reds
+FROM manager_stats ms
+JOIN managers m ON m.id = ms.manager_id
+ORDER BY ms.goals DESC;
+
+-- Which players contributed to manager 1's stats and when
+SELECT p.name, mpa.goals, mpa.assists, mpa.yellows
+FROM manager_player_athletics mpa
+JOIN players p ON p.id = mpa.player_id
+WHERE mpa.manager_id = 1
+ORDER BY mpa.goals DESC;
+
+-- Fixture results for gameweek 1
+SELECT hm.display_name AS home, am.display_name AS away,
+       r.home_goals, r.away_goals, r.outcome
+FROM match_results r
+JOIN fixtures f ON f.id = r.fixture_id
+JOIN managers hm ON hm.id = f.home_manager_id
+JOIN managers am ON am.id = f.away_manager_id
+WHERE f.gameweek_id = 1;
+```
+
+### Database file location
+
+| Path | Purpose |
+|---|---|
+| `fmlwc.db` | Default dev/demo database |
+| `sqlite:///:memory:` | Unit tests and one-shot scripts |
+| any path via env var | `make_engine(os.environ["FMLWC_DB_URL"])` |
+
+There is no migration tooling yet — schema changes require recreating the
+file. Production use should adopt Alembic before storing real data.
+
+### Tables created
+
+| Table | Model | Description |
+|---|---|---|
+| `managers` | `Manager` | Participants; holds current balance |
+| `players` | `Player` | Real-world footballers |
+| `roster_entries` | `RosterEntry` | Player↔manager ownership history |
+| `auction_rounds` | `AuctionRound` | Sealed-bid round metadata |
+| `submissions` | `Submission` | One bid sheet per manager per round |
+| `bids` | `Bid` | Individual bid rows with cascade status |
+| `auction_results` | `AuctionResult` | Final award per player per round |
+| `transfer_windows` | `TransferWindow` | Free-sign / trade periods |
+| `free_signs` | `FreeSign` | Free-agent signings within a window |
+| `trades` | `Trade` / `TradeLeg` | Player swap agreements |
+| `releases` | `Release` | Voluntary roster releases |
+| `eligibility_records` | `EligibilityRecord` | Signing restrictions |
+| `gameweeks` | `Gameweek` | Match rounds with phase + status (`PENDING/LIVE/FINALIZED`) |
+| `fixtures` | `Fixture` | A single home-vs-away match within a gameweek |
+| `lineups` | `Lineup` | Manager's submitted starters (JSON) + PK order |
+| `match_events` | `MatchEvent` | Live events keyed by `(gameweek_id, player_id)` |
+| `match_results` | `MatchResult` | Locked score + outcome per fixture |
+| `bonus_awards` | `BonusAward` | Assist/red-card/blue-team/missed-penalty awards |
+| `player_athletics` | `PlayerAthletics` | Career stats per player (season total) |
+| `manager_stats` | `ManagerStats` | Team aggregate stats per manager |
+| `manager_player_athletics` | `ManagerPlayerAthletics` | Per-player breakdown within each manager's historical roster |
+| `roster_snapshots` | `RosterSnapshot` | Knockout pre-match roster freeze |
+| `picks` | `Pick` | Knockout-winner player picks |
+| `injury_adjustments` | `InjuryAdjustment` | Injury-grant roster exceptions |
+
+### Connecting from a script
+
+```python
+from fmlwc.persistence.db import make_engine, make_session_factory, session_scope
+from fmlwc.persistence.sql_repos import SqlManagerRepo, SqlGameweekRepo  # etc.
+
+engine  = make_engine("sqlite:///fmlwc.db")
+factory = make_session_factory(engine)
+
+with session_scope(factory) as session:
+    managers = SqlManagerRepo(session).list_active()
+```
+
+`session_scope` commits on success and rolls back on any exception —
+always use it instead of managing the session manually.
+
+### SQLite pragmas applied automatically
+
+`make_engine` sets two pragmas on every new SQLite connection:
+
+| Pragma | Value | Reason |
+|---|---|---|
+| `foreign_keys` | `ON` | Enforce FK constraints (SQLite ignores them by default) |
+| `journal_mode` | `WAL` | Concurrent reads while a write is in progress |
+
+## 球员列表初始化
+
+在拍卖开始前，`players` 表需要用真实球员数据初始化。
+`scripts/generate_player_list.py` 负责从 Transfermarkt 球队阵容页爬取数据并写入数据库；
+爬虫核心逻辑在 `fmlwc/io/player_list_generator.py` 中，HTTP + HTML 解析部分留为 stub，可按需替换。
+
+### 快速上手
+
+```bash
+# 查看帮助
+python scripts/generate_player_list.py --help
+
+# 干跑（仅打印，不写库）— 先跑这个确认 stub 实现后数据正确
+python scripts/generate_player_list.py --dry-run
+
+# 顺序 ID（1, 2, 3 …），写入默认 fmlwc.db
+python scripts/generate_player_list.py --id-mode seq
+
+# 从 Transfermarkt URL 提取 ID，写入自定义路径
+python scripts/generate_player_list.py --id-mode url --db path/to.db
+
+# 只爬部分球队
+python scripts/generate_player_list.py --teams GER,ENG,FRA --dry-run
+
+# 顺序 ID 从 1001 开始（如需为新赛季追加球员时避免冲突）
+python scripts/generate_player_list.py --id-mode seq --seq-start 1001
+```
+
+### ID 策略
+
+| `--id-mode` | 说明 | 适用场景 |
+|---|---|---|
+| `seq`（默认） | 按 (球队顺序, 号码, 姓名) 排序后，从 `--seq-start`（默认 1）开始连续编号 | 与现有竞标 xlsx 文件中的短号码（1号、2号…）保持一致 |
+| `url` | 从 Transfermarkt 球员主页 URL 中提取数字 ID（`/spieler/17259` → `17259`） | 需要与外部数据源 ID 对齐时使用；ID 跨赛季稳定唯一 |
+
+### 实现爬虫
+
+`_scrape_team_page` 函数目前为 stub，调用时抛出 `NotImplementedError`。
+打开 `fmlwc/io/player_list_generator.py`，将函数体替换为真实实现（函数内注释中已提供 `requests` + `BeautifulSoup` 的参考片段）：
+
+```python
+# fmlwc/io/player_list_generator.py — _scrape_team_page 示例骨架
+import requests
+from bs4 import BeautifulSoup
+
+def _scrape_team_page(config: TeamConfig, http_session=None) -> list[RawPlayer]:
+    session = http_session or requests.Session()
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; FMLWC-scraper/0.1)"}
+    resp = session.get(config.squad_url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    players = []
+    for row in soup.select("table.items tbody tr.odd, table.items tbody tr.even"):
+        name_tag = row.select_one("td.hauptlink a")
+        pos_tag  = row.select_one("td.posrela")
+        no_tag   = row.select_one("td.rn_nummer")
+        val_tag  = row.select_one("td.rechts")
+        if not name_tag:
+            continue
+        players.append(RawPlayer(
+            name=name_tag.get_text(strip=True),
+            jersey_no=int(no_tag.get_text(strip=True)) if no_tag else None,
+            position_raw=pos_tag.get_text(strip=True) if pos_tag else "",
+            real_team=config.code,
+            market_value_eur_m=_parse_market_value(val_tag.get_text(strip=True) if val_tag else ""),
+            profile_url="https://www.transfermarkt.com" + name_tag["href"],
+        ))
+    return players
+```
+
+### 位置映射
+
+Transfermarkt 使用英文全称位置标签；`normalise_position()` 将其统一映射到引擎内部的 `G / D / M / F`。
+
+| Transfermarkt 标签 | 缩写 | FMLWC |
+|---|---|---|
+| Goalkeeper | GK | **G** |
+| Centre-Back, Left-Back, Right-Back | CB, LB, RB | **D** |
+| Central Midfield, Defensive Midfield, Attacking Midfield, Left/Right Midfield | CM, CDM, CAM, LM, RM | **M** |
+| Centre-Forward, Left Winger, Right Winger, Second Striker | CF, LW, RW, SS | **F** |
+| G, D, M, F（已是引擎格式） | — | 直传 |
+
+无法识别的位置标签默认映射为 **M**（中场），不会中断导入；
+若爬取到陌生标签，建议在 `_POSITION_MAP` 中补充对应条目。
+
+### 注入目标
+
+| 目标 | 函数 | 适用场景 |
+|---|---|---|
+| SQLite 数据库 | `inject_into_session(players, session)` | 生产/演示，调用方负责 `session.commit()` |
+| `FakePlayerRepo` | `inject_into_fake_repo(players, repo)` | 测试和 `run_auction*.py` 演示脚本 |
+
+`inject_into_session` 使用 merge-or-insert 策略：相同 id 的行会原地更新，不存在则插入。
+重复运行脚本是安全的（幂等）。
+
+### Euro 2020 球队列表
+
+`EURO_2020_TEAMS` 常量预置了 24 支参赛队的 Transfermarkt 阵容页 URL。
+如需为其他赛事生成球员列表，传入自定义 `list[TeamConfig]` 即可：
+
+```python
+from fmlwc.io.player_list_generator import TeamConfig, PlayerListGenerator, IdMode
+
+my_teams = [
+    TeamConfig("ENG", "https://www.transfermarkt.com/england/kader/verein/3/saison_id/2022"),
+    TeamConfig("FRA", "https://www.transfermarkt.com/frankreich/kader/verein/3377/saison_id/2022"),
+]
+generator = PlayerListGenerator(my_teams, id_mode=IdMode.SEQUENTIAL)
+players = generator.generate()   # list[tuple[int, RawPlayer]]
+```
+
+## Round setup
+
+Before live events can be recorded, the gameweek and its fixtures must exist in
+the database and lineups must be submitted.
+
+### 1. Open the gameweek
+
+```python
+from fmlwc.core.enums import GameweekPhase, GameweekStatus
+from fmlwc.persistence.sql_repos import SqlGameweekRepo
+
+with session_scope(factory) as session:
+    gameweeks = SqlGameweekRepo(session)
+    gw_id = gameweeks.create(
+        index=1,
+        phase=GameweekPhase.GROUP,
+        lineup_deadline=deadline,   # naive UTC datetime
+    )
+    gameweeks.set_status(gw_id, GameweekStatus.LIVE)
+```
+
+`create` inserts a `PENDING` gameweek and returns its id. Call `set_status`
+to advance it to `LIVE` once the real matches kick off.
+
+### 2. Persist fixtures
+
+```python
+from fmlwc.persistence.sql_repos import SqlFixtureRepo
+
+with session_scope(factory) as session:
+    fixtures = SqlFixtureRepo(session)
+    for spec in scheduler.group_stage_fixtures(groups)[round_index]:
+        fixtures.create(
+            gw_id,
+            spec.home_manager_id,
+            spec.away_manager_id,
+            group_letter=spec.group_letter,
+        )
+```
+
+Pass `bracket_slot` instead of `group_letter` for knockout rounds.
+
+### 3. Submit lineups
+
+Lineups are validated first, then persisted as a list of
+`{"player_id": int, "slot_position": str}` dicts — the serialised form of
+`ValidatedLineup.accepted`.
+
+```python
+from fmlwc.persistence.sql_repos import SqlFixtureRepo
+from fmlwc.domain.lineup.validator import LineupValidator
+
+with session_scope(factory) as session:
+    fixtures = SqlFixtureRepo(session)
+    result = lineup_validator.validate(manager_id, raw_starters)
+    fixtures.save_lineup(
+        fixture_id,
+        manager_id,
+        starters=[
+            {"player_id": s.player_id, "slot_position": s.slot_position.value}
+            for s in result.accepted
+        ],
+        posted_at=now,
+    )
+```
+
+Re-submitting before the deadline replaces the previous lineup.
+The optional `pk_order` argument accepts a list of player ids for penalty
+shootout resolution (knockout rounds only).
+
+## Match event interface
+
+The entry point for live match management is `RoundService` in
+`fmlwc.domain.match.round`. It exposes three operations:
+
+| Method | When to call |
+|---|---|
+| `add_event(gameweek_id, player_id, event_type, ...)` | Any time during a LIVE gameweek |
+| `remove_event(gameweek_id, event_id)` | Correct a mistake while still LIVE |
+| `finalize_gameweek(gameweek_id)` | Lock the round, write results + stats |
+
+### Wiring up the service
+
+```python
+from fmlwc.core.config import GameRules
+from fmlwc.core.enums import GameweekStatus, RealEventType
+from fmlwc.persistence.db import create_all, make_engine, make_session_factory, session_scope
+from fmlwc.persistence.repositories import (
+    SqlAthleticsRepo,
+    SqlFixtureRepo,
+    SqlGameweekRepo,
+    SqlManagerRepo,
+    SqlMatchEventRepo,
+)
+from fmlwc.domain.match.round import RoundService
+
+rules = GameRules.from_yaml("config/rules.example.yaml")
+
+engine = make_engine("sqlite:///fmlwc.db")
+create_all(engine)                          # dev/demo only — use Alembic in production
+factory = make_session_factory(engine)
+
+with session_scope(factory) as session:
+    service = RoundService(
+        rules=rules,
+        gameweeks=SqlGameweekRepo(session),
+        fixtures=SqlFixtureRepo(session),
+        events=SqlMatchEventRepo(session),
+        athletics=SqlAthleticsRepo(session),
+        managers=SqlManagerRepo(session),
+    )
+```
+
+### Adding events during a live gameweek
+
+`add_event` returns the new `event_id` so you can retract it if needed.
+The gameweek must already be in `LIVE` status (set via `GameweekRepo.set_status`);
+calling on a `PENDING` or `FINALIZED` gameweek raises `MatchError`.
+
+```python
+with session_scope(factory) as session:
+    svc = RoundService(rules=rules,
+                       gameweeks=SqlGameweekRepo(session),
+                       fixtures=SqlFixtureRepo(session),
+                       events=SqlMatchEventRepo(session),
+                       athletics=SqlAthleticsRepo(session),
+                       managers=SqlManagerRepo(session))
+
+    gameweek_id = 1
+
+    # Regular goal by player 42 in minute 67
+    goal_id = svc.add_event(gameweek_id, player_id=42,
+                            event_type=RealEventType.GOAL, minute=67)
+
+    # Assist by player 7 (same move)
+    svc.add_event(gameweek_id, player_id=7,
+                  event_type=RealEventType.ASSIST, minute=67)
+
+    # Extra-time goal — flag it so scoring can distinguish if needed
+    svc.add_event(gameweek_id, player_id=99,
+                  event_type=RealEventType.GOAL, minute=104, is_extra_time=True)
+
+    # Penalty shootout goal — excluded from valid-goal count by default
+    svc.add_event(gameweek_id, player_id=42,
+                  event_type=RealEventType.GOAL, is_shootout=True)
+```
+
+Available `RealEventType` values:
+
+| Value | Counts as valid goal? | Notes |
+|---|---|---|
+| `GOAL` | yes | Regular or extra-time |
+| `OWN_GOAL` | yes | Credited to the scorer's own team |
+| `SAVED_PENALTY_BY_GK` | yes | +1 for the keeper's team |
+| `MISSED_PENALTY` | no | Triggers `MissedPenaltyBonus` |
+| `ASSIST` | no | Triggers `AssistBonus` |
+| `YELLOW` | no | PK scoring input |
+| `SECOND_YELLOW_RED` | no | PK scoring input |
+| `RED` | no | Triggers `RedCardBonus`, PK scoring input |
+
+### Removing a mistaken event
+
+Pass the `event_id` returned by `add_event`. Only allowed while the
+gameweek is `LIVE`.
+
+```python
+with session_scope(factory) as session:
+    svc = RoundService(...)
+
+    # VAR overturns the goal — retract it
+    svc.remove_event(gameweek_id=1, event_id=goal_id)
+```
+
+### Finalizing the gameweek
+
+Call once all events have been entered and verified. This is the only
+write that cannot be undone.
+
+```python
+with session_scope(factory) as session:
+    svc = RoundService(...)
+    svc.finalize_gameweek(gameweek_id=1)
+```
+
+What happens internally:
+
+1. **Fixture scores** — `ValidGoalCalculator` runs per fixture using the
+   submitted lineups as the starter filter. Results are written to
+   `match_results`.
+2. **Bonuses** — `BonusEngine` computes assist / red-card / blue-team /
+   missed-penalty awards and credits each manager's balance.
+3. **Player career stats** — `PlayerAthletics` is incremented for every
+   starter event (goals, assists, cards). Reflects the player's total
+   regardless of transfers.
+4. **Team aggregate** — `ManagerStats` is incremented with the same
+   events, attributed to the manager who fielded the player in *this*
+   gameweek's lineup, not the current owner.
+5. **Per-player team breakdown** — `ManagerPlayerAthletics`
+   `(manager_id, player_id)` is incremented, giving a per-player
+   breakdown within each manager's historical roster.
+6. Gameweek status is set to `FINALIZED`.
+
+### Stats attribution example
+
+```
+Gameweek 1 — player A on Manager1's lineup, scores 2 goals
+Gameweek 3 — player A transferred to Manager2, scores 1 goal
+
+After finalize_gameweek(3):
+
+PlayerAthletics      player_A           goals = 3
+ManagerStats         manager_1          goals = 2
+ManagerStats         manager_2          goals = 1
+ManagerPlayerAthletics (manager_1, player_A)  goals = 2
+ManagerPlayerAthletics (manager_2, player_A)  goals = 1
+```
+
+## 手动操作
+
+赛季编排（Season orchestrator）尚未实现时，可通过以下命令手动完成各阶段操作。
+所有脚本均从项目根目录运行；DB 路径和规则文件路径可通过 `--db` / `--rules` 覆盖。
+
+### 前置：创建转会窗口
+
+自由签必须在开放的转会窗口内进行。在 season orchestrator 就绪前可手动插入：
+
+```bash
+~/anaconda3/envs/fmlwc/bin/sqlite3 fmlwc.db \
+  "INSERT INTO transfer_windows (opens_at, closes_at, free_sign_period_seconds, status)
+   VALUES ('2026-06-03 00:00:00','2026-06-07 00:00:00',86400,'OPEN');"
+```
+
+| 字段 | 说明 |
+|---|---|
+| `opens_at` / `closes_at` | 窗口起止时间（SQLite 存储为无时区 UTC） |
+| `free_sign_period_seconds` | 冷却期长度（秒）；86400 = 24 小时 |
+| `status` | `OPEN` 立即生效；`PENDING` 暂不开放 |
+
+---
+
+### 自由签（rule 三）
+
+`scripts/free_sign.py` 是自由签的完整操作入口，支持单笔和批量两种模式。
+
+#### 生命周期
+
+```
+propose()    →  pending   (revoked=False, effective=False)
+revoke()     →  cancelled (revoked=True,  fee not charged)
+commit_due() →  effective (effective=True, balance -=10m, roster updated)
+```
+
+`commit_due` 需要在反悔窗口（默认 15 分钟）到期后调用，可手动触发或定时执行。
+
+#### 单笔操作
+
+```bash
+# 提交一笔自由签（使用当前 UTC 时间）
+python scripts/free_sign.py propose --manager 1 --player 42
+
+# 指定时间戳（用于补录历史操作）
+python scripts/free_sign.py propose --manager 1 --player 42 --at "2026-06-04T10:00:00Z"
+
+# 反悔（必须在反悔窗口内）
+python scripts/free_sign.py revoke --id 7
+
+# 提交所有已过反悔期的挂单
+python scripts/free_sign.py commit
+
+# 自定义 DB / 规则文件
+python scripts/free_sign.py --db sqlite:///my.db --rules config/rules.yaml propose --manager 1 --player 42
+```
+
+#### 批量操作
+
+先生成模板，再填写后批量导入：
+
+```bash
+# 1. 生成 CSV 模板
+python scripts/free_sign.py batch --template > signs.csv
+
+# 2. 编辑 signs.csv（格式见下方）
+
+# 3. 导入
+python scripts/free_sign.py batch signs.csv
+```
+
+**CSV 格式：** `manager_id,player_id[,at]`
+- `at` 列可省略，省略时使用执行时刻的 UTC 时间
+- `#` 开头的行为注释，空行忽略
+
+```csv
+# manager_id,player_id[,at]
+1,42
+2,17,2026-06-04T10:00:00Z
+3,99
+```
+
+批量执行输出示例：
+
+```
+Line   Mgr    Plr  Result
+--------------------------------------------------
+   1     1     42  [ok] id=1
+   2     2     17  [ok] id=2
+   3     3     99  [denied] no transfer window open at this time
+--------------------------------------------------
+Total: 3  ok=2  denied=1
+```
+
+有任意一行被拒绝时，脚本以非零退出码退出；已成功的行仍会写入 DB（逐行提交）。
+
+#### Python shell / 程序化调用
+
+```python
+from scripts.free_sign import build_service
+from datetime import datetime, timezone
+
+svc = build_service()   # 从 config/rules.example.yaml 读取 DB URL
+
+result = svc.try_propose(manager_id=1, player_id=42,
+                         posted_at=datetime.now(tz=timezone.utc))
+if result.success:
+    print(f"待生效，free_sign_id={result.free_sign_id}")
+else:
+    print(f"拒绝：{result.error}")
+
+committed = svc.commit_due(datetime.now(tz=timezone.utc))
+svc._session.commit()
+```
+
+#### Web 端集成（FastAPI 示例）
+
+```python
+from scripts.free_sign import build_service
+
+@app.post("/free-sign/propose")
+def propose(body: ProposeRequest, session: Session = Depends(get_session)):
+    svc = build_service(session=session)   # 复用请求级 session，由框架管理事务
+    result = svc.try_propose(body.manager_id, body.player_id,
+                             posted_at=datetime.now(tz=timezone.utc))
+    if not result.success:
+        raise HTTPException(status_code=422, detail=result.error)
+    return {"free_sign_id": result.free_sign_id}
+```
+
+#### 验证规则（rule 三.3）
+
+| 检查 | 错误类型 |
+|---|---|
+| 转会窗口未开放 | `TransferError` |
+| 球员已被签约（非自由球员） | `TransferError` |
+| 同一冷却期内已有未撤销的自由签（rule 三.6） | `TransferError` |
+| 大名单总人数已达上限 | `EligibilityError` |
+| 该位置人数已达上限 | `EligibilityError` |
+| 余额 < 10m | `EligibilityError` |
+| `FREE_SIGN_SAME_WINDOW` / 其他资格限制 | `EligibilityError` |
+
+`try_propose` / `try_revoke` 捕获以上所有异常，返回 `FreeSignResult(success, free_sign_id, error)`，不向上抛出。
+
+冷却期（rule 三.6）：每个玩家在 `free_sign_period_seconds` 内只能提交一笔未撤销的自由签；已撤销的不计入冷却。
+
+生效后（rule 三.7）：若 `transfer.same_window_block_after_free_sign: true`，`commit_due` 会写入 `FREE_SIGN_SAME_WINDOW` 资格封锁，同一窗口内其他玩家不得签约该球员。
+
 ## 参考
 
 - [`RULES.md`](./RULES.md) — FME-2021 规则原文

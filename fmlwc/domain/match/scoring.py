@@ -1,11 +1,13 @@
-"""Valid-goal (FME) calculation (rule 零.4 + 五.2).
+"""Valid-goal calculation (rule 零.4 + 五.2).
 
 team_goals(manager, fixture) =
     Sum events such that
-        event.gameweek_id == fixture.gameweek_id
-        event.real_player_id in lineup.starters
-        event.event_type   in rules.valid_goal.count_event_types
+        event.player_id in lineup.starters
+        event.event_type in rules.valid_goal.count_event_types
         event not in penalty shootout (if exclude_penalty_shootout)
+
+Events are pre-scoped to the fixture by the caller (RoundService); no
+gameweek_id filter is needed here.
 """
 
 from __future__ import annotations
@@ -24,36 +26,31 @@ class FixtureScore:
     outcome: MatchOutcome
 
 
-class FmeGoalCalculator:
+class ValidGoalCalculator:
     def __init__(self, rules: GameRules) -> None:
         self.rules = rules
 
     def score(
         self,
         fixture_id: int,
-        gameweek_id: int,
-        home_starter_ids,
-        away_starter_ids,
+        home_starter_ids: set[int],
+        away_starter_ids: set[int],
         events,
     ) -> FixtureScore:
         cfg = self.rules.valid_goal
         counted_types = set(cfg.count_event_types)
-        home_set = set(home_starter_ids)
-        away_set = set(away_starter_ids)
 
         home_goals = 0
         away_goals = 0
         for ev in events:
-            if ev.gameweek_id != gameweek_id:
-                continue
             if cfg.exclude_penalty_shootout and getattr(ev, "is_shootout", False):
                 continue
             etype = ev.event_type.value if hasattr(ev.event_type, "value") else ev.event_type
             if etype not in counted_types:
                 continue
-            if ev.real_player_id in home_set:
+            if ev.player_id in home_starter_ids:
                 home_goals += 1
-            elif ev.real_player_id in away_set:
+            elif ev.player_id in away_starter_ids:
                 away_goals += 1
 
         if home_goals > away_goals:

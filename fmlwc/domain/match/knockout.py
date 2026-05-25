@@ -1,7 +1,7 @@
 """Knockout-stage PK system (rule 六.3 + 六.4).
 
 PK score per starter:
-    +2 per FME goal
+    +2 per valid goal
     +1 per assist
     -0.3 per yellow
     -0.7 per second-yellow-red

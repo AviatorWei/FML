@@ -100,6 +100,7 @@ class EligibilityRestriction(str, enum.Enum):
     AUCTION_OTHERS_NEXT_WINDOW = "AUCTION_OTHERS_NEXT_WINDOW"
     FREE_SIGN_SAME_WINDOW = "FREE_SIGN_SAME_WINDOW"
     RELEASED_LIFETIME = "RELEASED_LIFETIME"
+    DISMISSED_LIFETIME = "DISMISSED_LIFETIME"
     KNOCKOUT_PICK_BLACKLIST = "KNOCKOUT_PICK_BLACKLIST"
 
 
@@ -127,3 +128,9 @@ class GameweekPhase(str, enum.Enum):
     QF = "QF"
     SF = "SF"
     F = "F"
+
+
+class GameweekStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    LIVE = "LIVE"
+    FINALIZED = "FINALIZED"

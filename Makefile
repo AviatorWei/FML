@@ -1,9 +1,11 @@
-PYTHON := $(HOME)/anaconda3/envs/fmlwc/bin/python
+PYTHON  := $(HOME)/anaconda3/envs/fmlwc/bin/python
 PYTEST  := $(PYTHON) -m pytest
 RUFF    := $(PYTHON) -m ruff
 MYPY    := $(PYTHON) -m mypy
+SQLITE3 := $(HOME)/anaconda3/envs/fmlwc/bin/sqlite3
+DB      ?= fmlwc.db
 
-.PHONY: test test-v test-cov lint typecheck env-create env-update
+.PHONY: test test-v test-cov lint typecheck env-create env-update db-init db-reset db-shell
 
 test:
 	$(PYTEST) tests/
@@ -25,3 +27,12 @@ env-create:
 
 env-update:
 	conda env update -n fmlwc -f environment.yml --prune
+
+db-init:
+	$(PYTHON) scripts/init_db.py $(DB)
+
+db-reset:
+	$(PYTHON) scripts/init_db.py $(DB) --reset
+
+db-shell:
+	$(SQLITE3) $(DB)

@@ -52,6 +52,7 @@ class AuctionConfig:
     tiebreaker: str
     cascade: AuctionCascadeConfig
     collusion_block_next_window: bool
+    conditional_release_enabled: bool  # 条件解约: 负数 rank 标记可解约的已有球员
 
 
 @dataclass(frozen=True)

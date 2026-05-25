@@ -44,6 +44,9 @@ auction:
     invalidate_tie_within_pos: "lower_rank_first"
   # 防共谋: 暗标签出后, 其他经理在下一个转会窗失格
   collusion_block_next_window: true
+  # 条件解约: 用负数 rank 标记已有球员, 若有中标则按顺序解约 (世界杯可关闭)
+  conditional_release:
+    enabled: false
 
 # 转会窗 ---------------------------------------------------------------
 transfer:
@@ -124,10 +127,10 @@ injury:
   enabled: true
   refund_last_signing_fee: true
   grant_extra_free_sign_after_window: true
-  gk_zero_balance_grant: 10
+  gk_zero_balance_grant: 1
 
-# 持久化 ---------------------------------------------------------------
+# 存储 -----------------------------------------------------------------
 storage:
-  driver: "sqlite"
+  driver: sqlite
   url: "sqlite:///fmlwc.db"
-  echo: fals
+  echo: false

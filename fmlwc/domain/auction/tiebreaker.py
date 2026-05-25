@@ -41,6 +41,7 @@ class AmountRankTimeDraw(TiebreakerStrategy):
     def select_winner(self, candidates: Sequence[CandidateBid]) -> CandidateBid:
         if not candidates:
             raise ValueError("no candidates to select winner from")
+
         return min(
             candidates,
             key=lambda b: (

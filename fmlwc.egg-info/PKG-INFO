@@ -80,3 +80,7 @@ fmlwc/
 - [SQLAlchemy 2.0 ORM](https://docs.sqlalchemy.org/en/20/orm/quickstart.html)
 - [Pydantic v2](https://docs.pydantic.dev/latest/)
 - [Sealed-bid auction (Wikipedia)](https://en.wikipedia.org/wiki/Sealed-bid_auction)
+
+## 货币单位约定
+
+所有金额（玩家余额、bid 出价、自由签 fee、奖金、出线/晋级奖等）均以**百万欧元**为单位的整数存储。YAML/数据库里写 `600` = 6 亿欧。换言之，"10m" 在代码中表达为 `10`，不是 `10_000_000`。
