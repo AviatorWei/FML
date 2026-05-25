@@ -327,6 +327,134 @@ generator = PlayerListGenerator(my_teams, id_mode=IdMode.SEQUENTIAL)
 players = generator.generate()   # list[tuple[int, RawPlayer]]
 ```
 
+## 暗标拍卖（Sealed-bid Auction）
+
+每轮拍卖由竞标 xlsx 文件驱动。所有 xlsx 读入后送入 `AuctionService`，引擎完成验证 → Cascade → 逐球员决标 → 阵容更新。
+
+### 快速验证（对比历史结果）
+
+`scripts/run_auction1.py` 读取 `example/bids-1/` 目录下所有 xlsx，用内存 fake repos 跑完第一轮，并与 `example/1轮暗标公示.txt` / `1轮暗标后阵容.txt` 逐条比对：
+
+```bash
+python scripts/run_auction1.py
+```
+
+输出示例（全部匹配时）：
+
+```
+[load] read 16 submission files from example/bids-1
+[setup] found 108 unique players across all bids
+[setup] managers (16): ['ALB', 'CZE', ...]
+[submit] submitted 16 bid sheets
+[resolve] 108 awards, 0 cascade-invalidated, total spend 4336m
+
+======================================================================
+ANNOUNCEMENT COMPARISON
+======================================================================
+  OK — all bid lines match (player_id, manager_code, rank, amount)
+
+======================================================================
+ROSTER COMPARISON
+======================================================================
+  OK — all roster entries match (player, balance, price)
+
+======================================================================
+SUMMARY
+======================================================================
+  PASS — auction output matches expected for round 1
+```
+
+脚本最后无论是否匹配，均打印完整的**暗标公示**和**赛后阵容**供人工审阅。
+
+### 竞标 xlsx 格式
+
+每支队伍一个文件，命名规则 `FME_<年>_Bid<轮次>_<队伍代码>.xlsx`，活动 Sheet 的前六列为：
+
+| 列 | 含义 | 说明 |
+|---|---|---|
+| A — Order | `rank_in_position` | 正整数，越小越优先；同队内同位置可重复 |
+| B — Price | 出价（百万欧元） | 整数，最低 10m |
+| C — ID | 球员 ID | 与 `players` 表 `id` 一致 |
+| D — Name | 球员姓名 | 仅供阅读，不参与计算 |
+| E — Team | 真实球队代码 | 仅供阅读 |
+| F — Pos | 位置（G/D/M/F） | 仅供阅读；引擎以数据库中的位置为准 |
+
+**有效行**：A 列为非零整数。A 列为空或 0 的行跳过（可用作备注行）。
+
+xlsx 模板还有 G–J 列（余额汇总公式），引擎忽略。
+
+### 流程说明
+
+| 步骤 | 方法 | 说明 |
+|---|---|---|
+| 1. 开启轮次 | `auction.open_round(round_id)` | 状态置为 `OPEN`，可接收提交 |
+| 2. 提交竞标 | `auction.submit(round_id, manager_id, raw_bids, received_at)` | 重复提交自动覆盖（rule 二.2） |
+| 3. 关闭轮次 | `auction.close_round(round_id, at=close_time)` | 状态置为 `RESOLVING`，不再接收提交 |
+| 4. 决标 | `auction.resolve(round_id, at=close_time)` | Cascade → 决标 → 余额扣除 → 阵容更新 |
+| 5. 公示 | `auction.announcement_views(round_id)` | 返回所有参与决标的 bid 行（`AWARDED`/`LOST`） |
+
+#### Cascade 规则（rule 二.4–二.5）
+
+每位经理的竞标独立执行三轮 Cascade，直至所有约束均满足：
+
+1. **位置人数上限**（F→M→D→G 顺序）：超出时，从该位置出价最高的 bid 开始作废
+2. **总余额**：有效 bid 总出价 > 余额时，从所有位置出价最高的 bid 开始作废
+3. **大名单总上限**：有效 bid 数 + 现有阵容 > 20 时，继续作废最高 bid
+
+同价时的作废优先级：**F > M > D > G**，位置内再按 `rank_in_position` 升序（即数字小的先保留）。
+
+#### 决标逻辑（rule 二.6）
+
+每位球员只有一个获奖者，按以下键升序排列取最小（第一名获奖）：
+
+```
+(-出价, rank_in_position, 提交时间, deterministic_draw_seed)
+```
+
+即：出价越高越好；同价时 rank 越小越好；再同则按提交时间；最终由确定性随机种子打破平局。
+
+### 程序化调用
+
+```python
+from datetime import datetime, timezone
+from fmlwc.domain.auction.service import AuctionService
+from fmlwc.io.xlsx_bid_reader import XlsxBidReader
+from pathlib import Path
+
+# -- 读入 xlsx --
+reader = XlsxBidReader(Path("example/bids-1"))
+submissions = reader.read_all()
+
+# -- 提交 --
+received_at = datetime(2026, 6, 1, 20, 0, tzinfo=timezone.utc)
+for sub in submissions:
+    manager_id = code_to_id[sub.manager_code]
+    auction.submit(round_id, manager_id, sub.to_raw_bids(manager_id), received_at)
+
+# -- 决标 --
+close_at = datetime(2026, 6, 2, 12, 0, tzinfo=timezone.utc)
+auction.close_round(round_id, at=close_at)
+resolution = auction.resolve(round_id, at=close_at)
+print(f"{len(resolution.awards)} awards, total {resolution.total_spend}m")
+
+# -- 公示 --
+from fmlwc.io.announcement import AuctionAnnouncementFormatter
+views = auction.announcement_views(round_id)
+print(AuctionAnnouncementFormatter().format(views))
+```
+
+### 公示格式
+
+暗标公示按球员 ID 升序、同一球员按出价降序排列，每行格式为：
+
+```
+{rank}   {amount}m  {player_name:<20} {pos}  {real_team:<4}  {player_id}号 {manager_code}
+```
+
+只展示参与决标的 bid（`AWARDED` 和 `LOST`）；Cascade 作废或资格不符的 bid 不公开。
+
+---
+
 ## Round setup
 
 Before live events can be recorded, the gameweek and its fixtures must exist in
