@@ -88,20 +88,51 @@ def _naive(dt: datetime) -> datetime:
 # Seeding
 # ---------------------------------------------------------------------------
 
-def seed_from_submissions(session, submissions, rules: GameRules) -> dict[str, int]:
-    """Upsert players and managers from xlsx data. Returns code→manager_id map."""
-    # Upsert players
-    players_seen: dict[int, tuple[str, str, str]] = {}
-    for sub in submissions:
-        for row in sub.rows:
-            if row.player_id not in players_seen:
-                players_seen[row.player_id] = (
-                    row.player_name or f"Player{row.player_id}",
-                    row.real_team or "UNK",
-                    row.position_str or "M",
-                )
+def _read_all_players_from_xlsx(bids_dir: Path) -> dict[int, tuple[str, str, str]]:
+    """Read every player row in all xlsx files, regardless of whether they were bid on.
 
-    for pid, (name, team, pos_str) in players_seen.items():
+    Returns {player_id: (name, real_team, position_str)}.
+    When the same player appears in multiple files, the first occurrence wins.
+    """
+    try:
+        import openpyxl
+    except ImportError as exc:
+        raise ImportError("openpyxl is required: pip install openpyxl") from exc
+
+    players: dict[int, tuple[str, str, str]] = {}
+    for path in sorted(bids_dir.glob("*.xlsx")):
+        wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+        try:
+            ws = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+        finally:
+            wb.close()
+        for row in rows[1:]:   # skip header
+            if len(row) < 6:
+                continue
+            pid_raw, name_raw, team_raw, pos_raw = row[2], row[3], row[4], row[5]
+            if not isinstance(pid_raw, (int, float)) or pid_raw is None:
+                continue
+            pid = int(pid_raw)
+            if pid == 0 or pid in players:
+                continue
+            players[pid] = (
+                str(name_raw).strip() if name_raw else f"Player{pid}",
+                str(team_raw).strip() if team_raw else "UNK",
+                str(pos_raw).strip() if pos_raw else "M",
+            )
+    return players
+
+
+def seed_from_bids_dir(
+    session, bids_dir: Path, submissions, rules: GameRules
+) -> dict[str, int]:
+    """Upsert ALL players (full xlsx catalog) and managers. Returns code→manager_id map."""
+    from sqlalchemy import select
+
+    # Upsert full player catalog — includes players who were never bid on
+    players_catalog = _read_all_players_from_xlsx(bids_dir)
+    for pid, (name, team, pos_str) in players_catalog.items():
         try:
             position = Position(pos_str)
         except ValueError:
@@ -118,7 +149,6 @@ def seed_from_submissions(session, submissions, rules: GameRules) -> dict[str, i
     codes = sorted({sub.manager_code for sub in submissions})
     budget = rules.managers.initial_budget
     code_to_id: dict[str, int] = {}
-    from sqlalchemy import select
     for code in codes:
         stmt = select(Manager).where(Manager.display_name == code)
         mgr = session.scalars(stmt).first()
@@ -129,7 +159,7 @@ def seed_from_submissions(session, submissions, rules: GameRules) -> dict[str, i
         code_to_id[code] = mgr.id
 
     session.flush()
-    print(f"[seed] {len(players_seen)} players, {len(codes)} managers upserted")
+    print(f"[seed] {len(players_catalog)} players, {len(codes)} managers upserted")
     return code_to_id
 
 
@@ -253,7 +283,7 @@ def main() -> None:
     try:
         # -- seed if requested -------------------------------------------------
         if args.seed:
-            code_to_id = seed_from_submissions(session, submissions, rules)
+            code_to_id = seed_from_bids_dir(session, bids_dir, submissions, rules)
         else:
             code_to_id = resolve_managers(session, submissions)
 
