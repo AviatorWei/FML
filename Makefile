@@ -5,7 +5,9 @@ MYPY    := $(PYTHON) -m mypy
 SQLITE3 := $(HOME)/anaconda3/envs/fmlwc/bin/sqlite3
 DB      ?= fmlwc.db
 
-.PHONY: test test-v test-cov lint typecheck env-create env-update db-init db-reset db-shell
+OUT     ?= player_list.xlsx
+
+.PHONY: test test-v test-cov lint typecheck env-create env-update db-init db-reset db-shell export-players
 
 test:
 	$(PYTEST) tests/
@@ -36,3 +38,6 @@ db-reset:
 
 db-shell:
 	$(SQLITE3) $(DB)
+
+export-players:
+	$(PYTHON) scripts/export_players.py --db $(DB) --out $(OUT)

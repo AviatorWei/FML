@@ -18,7 +18,12 @@ make lint          # ruff check
 make typecheck     # mypy validation
 make env-create    # Create conda environment
 make env-update    # Update conda environment
+make db-init       # Create schema in fmlwc.db (no-op if tables exist)
+make db-reset      # Drop fmlwc.db entirely and recreate all tables from scratch
+make db-shell      # Open SQLite REPL on fmlwc.db
 ```
+
+To target a different database file: `make db-init DB=path/to/other.db` (works for `db-reset` and `db-shell` too).
 
 Run a single test file:
 ```bash

@@ -58,6 +58,54 @@ fmlwc/
 3. 实装真实事件导入器（UEFA/Whoscored 适配器）。
 4. 用 Alembic 替换 `db.create_all`。
 
+## 环境配置
+
+### 安装 Conda（首次）
+
+项目依赖 Anaconda/Miniconda。若尚未安装，从 [https://docs.anaconda.com/miniconda/](https://docs.anaconda.com/miniconda/) 下载对应平台的安装包，按提示完成安装后重开终端。
+
+### 创建环境（首次）
+
+```bash
+conda env create -f environment.yml
+```
+
+这会创建名为 `fmlwc` 的环境，包含 Python 3.11 及所有依赖（SQLAlchemy 2.0、Pydantic v2、PyYAML、pytest、ruff、mypy 等）。
+
+### 激活环境
+
+```bash
+conda activate fmlwc
+```
+
+若 `conda` 命令未找到（常见于首次安装后未重开终端），先初始化再激活：
+
+```bash
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate fmlwc
+```
+
+激活后提示符前会出现 `(fmlwc)`，此时 `python` 指向环境内的 Python 3.11。
+
+### 更新依赖
+
+```bash
+make env-update   # 等价于: conda env update -n fmlwc -f environment.yml --prune
+```
+
+### 不激活环境时直接运行
+
+如果不想每次激活，可以用环境内的绝对路径：
+
+```bash
+~/anaconda3/envs/fmlwc/bin/python scripts/run_auction1.py
+~/anaconda3/envs/fmlwc/bin/python -m pytest tests/
+```
+
+Makefile 的所有目标（`make test`、`make db-init` 等）已硬编码此路径，无需激活环境即可使用。
+
+---
+
 ## SQLite setup
 
 ### Quick start
@@ -412,6 +460,42 @@ xlsx 模板还有 G–J 列（余额汇总公式），引擎忽略。
 ```
 
 即：出价越高越好；同价时 rank 越小越好；再同则按提交时间；最终由确定性随机种子打破平局。
+
+### 运行脚本（写入 DB + 输出 txt）
+
+`scripts/run_auction.py` 是面向生产/复盘的完整脚本：读取 xlsx → 写入 SQLite → 生成公示和阵容 txt 文件。
+
+```bash
+# 首次运行：自动从 xlsx 创建球员和经理记录，然后执行第 1 轮
+python scripts/run_auction.py \
+    --bids-dir example/bids-1 \
+    --round 1 \
+    --seed \
+    --received-at "2026-06-01T20:00:00Z" \
+    --closed-at   "2026-06-02T12:00:00Z"
+
+# DB 已有球员/经理，仅执行拍卖
+python scripts/run_auction.py --bids-dir example/bids-1 --round 1
+
+# 自定义 DB 路径和输出目录
+python scripts/run_auction.py \
+    --bids-dir example/bids-1 --round 1 --seed \
+    --db sqlite:///my.db --out-dir results/round1/
+
+# 干跑：内存解算 + 写 txt，但不提交 DB
+python scripts/run_auction.py --bids-dir example/bids-1 --round 1 --seed --dry-run
+```
+
+输出文件默认写入 `output/` 目录：
+
+| 文件 | 内容 |
+|---|---|
+| `{N}轮暗标公示.txt` | 所有参与决标的 bid 行（AWARDED + LOST），格式与 `example/1轮暗标公示.txt` 一致 |
+| `{N}轮暗标后阵容.txt` | 每位经理的阵容：人数、剩余资金、球员列表（按 G/D/M/F 位置排序） |
+
+**防重复保护**：若该轮次（`--round`）已在 DB 中以 `CLOSED` 状态存在，脚本报错退出，避免重复结算。若需重跑，先 `make db-reset` 重置数据库。
+
+**`--seed` 说明**：从 xlsx 数据自动 upsert 球员（id/姓名/球队/位置）和经理（display_name = 文件名代码，balance = initial_budget）。幂等，多次运行安全。不传 `--seed` 时，DB 中须已有 `display_name` 与 xlsx 文件名代码一致的经理记录。
 
 ### 程序化调用
 

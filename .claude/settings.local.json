@@ -36,7 +36,10 @@
       "Bash(awk *)",
       "Bash(git push *)",
       "Bash(~/anaconda3/envs/fmlwc/bin/python scripts/free_sign.py batch --template)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(conda info *)",
+      "Bash(~/anaconda3/bin/conda info *)",
+      "Bash(~/anaconda3/bin/conda --version)"
     ]
   }
 }
