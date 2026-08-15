@@ -134,3 +134,22 @@ storage:
   driver: sqlite
   url: "sqlite:///fmlwc.db"
   echo: false
+
+# 双线模式（联赛 + 杯赛）-------------------------------------------------
+# Dual-competition mode. When enabled:
+#   * extra_teams          — real teams that exist ONLY in the cup; their
+#                            players are cup-exclusive signings.
+#   * league_teams_in_cup  — league real teams also playing the cup; their
+#                            players are dual-eligible (league AND cup)
+#                            during the cup group stage.
+#   * separate_after_group — once the first CUP knockout gameweek goes LIVE,
+#                            eligibility separates: each dual player counts
+#                            for exactly one competition (declared via
+#                            POST /api/cup/assignments; undeclared → LEAGUE).
+# Gameweeks carry a `competition` field (LEAGUE | CUP); league standings
+# count only LEAGUE gameweeks and the knockout bracket only CUP gameweeks.
+cup:
+  enabled: false
+  extra_teams: []            # e.g. ["BRA", "ARG", "USA"]
+  league_teams_in_cup: []    # e.g. ["GER", "FRA", "ESP", "ITA"]
+  separate_after_group: true

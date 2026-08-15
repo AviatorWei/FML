@@ -17,7 +17,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ...core.enums import GameweekPhase, GameweekStatus, MatchOutcome, RealEventType
+from ...core.enums import (
+    Competition,
+    GameweekPhase,
+    GameweekStatus,
+    MatchOutcome,
+    RealEventType,
+)
 from ..base import Base
 
 
@@ -29,6 +35,11 @@ class Gameweek(Base):
     lineup_deadline: Mapped[datetime] = mapped_column(DateTime)
     status: Mapped[GameweekStatus] = mapped_column(
         SAEnum(GameweekStatus), default=GameweekStatus.PENDING
+    )
+    # Dual-competition mode: which competition this gameweek belongs to.
+    # Single-competition seasons leave everything at LEAGUE.
+    competition: Mapped[Competition] = mapped_column(
+        SAEnum(Competition), default=Competition.LEAGUE, server_default="LEAGUE"
     )
 
 
@@ -80,6 +91,10 @@ class MatchResult(Base):
     outcome: Mapped[MatchOutcome] = mapped_column(SAEnum(MatchOutcome))
     pk_winner_id: Mapped[int | None] = mapped_column(ForeignKey("managers.id"), nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Reserve-team (预备队, FML 第四十二/四十三条) parallel score: goals by
+    # rostered players NOT in the starting lineup. Null when not computed.
+    home_reserve_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_reserve_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class BonusAward(Base):

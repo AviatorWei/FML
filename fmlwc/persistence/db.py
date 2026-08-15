@@ -63,3 +63,36 @@ def create_all(engine: Engine) -> None:
     from . import models  # noqa: F401
 
     Base.metadata.create_all(engine)
+    ensure_schema_upgrades(engine)
+
+
+def ensure_schema_upgrades(engine: Engine) -> None:
+    """Additive, idempotent column upgrades for pre-existing SQLite files.
+
+    ``create_all`` never alters existing tables, so columns added after a
+    database was first created must be patched in here. Dev/demo only —
+    production uses Alembic.
+    """
+    if not str(engine.url).startswith("sqlite"):
+        return
+    upgrades = [
+        # (table, column, DDL fragment)
+        ("gameweeks", "competition",
+         "ALTER TABLE gameweeks ADD COLUMN competition VARCHAR(6) "
+         "NOT NULL DEFAULT 'LEAGUE'"),
+        ("managers", "cup_balance",
+         "ALTER TABLE managers ADD COLUMN cup_balance INTEGER "
+         "NOT NULL DEFAULT 0"),
+        ("match_results", "home_reserve_goals",
+         "ALTER TABLE match_results ADD COLUMN home_reserve_goals INTEGER"),
+        ("match_results", "away_reserve_goals",
+         "ALTER TABLE match_results ADD COLUMN away_reserve_goals INTEGER"),
+    ]
+    with engine.connect() as conn:
+        for table, column, ddl in upgrades:
+            cols = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+            if not cols:
+                continue  # table doesn't exist yet (created fresh above)
+            if column not in {c[1] for c in cols}:
+                conn.execute(text(ddl))
+        conn.commit()

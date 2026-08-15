@@ -11,6 +11,7 @@ __init__ re-exports everything so callers can still do
 """
 
 from .auction import AuctionResult, AuctionRound, Bid, Submission
+from .competition import CupRosterEntry, CupState
 from .eligibility import EligibilityRecord
 from .injury import InjuryAdjustment
 from .knockout import Pick, RosterSnapshot
@@ -44,4 +45,6 @@ __all__ = [
     "RosterSnapshot", "Pick",
     # injury
     "InjuryAdjustment",
+    # dual-competition
+    "CupRosterEntry", "CupState",
 ]

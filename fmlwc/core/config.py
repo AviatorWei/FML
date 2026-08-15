@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ._config_types import (
+    DEFAULT_CUP,
     AuctionCascadeConfig, AuctionConfig, AuctionRoundSpec,
-    BlueTeamConfig, BonusesConfig, FlatBonusConfig, ValidGoalConfig,
+    BlueTeamConfig, BonusesConfig, CupConfig, FlatBonusConfig, ValidGoalConfig,
     GroupStageConfig, InjuryConfig, KnockoutConfig, LineupConfig,
     ManagersConfig, MatchConfig, PkScoreConfig, PrizeBucketConfig,
     PrizesConfig, ReleaseConfig, RosterConfig, ScopeConfig,
@@ -182,6 +183,12 @@ def _parse_transfer(r):
         trades_allow_cash=_as_bool(_require(trades, "allow_cash", "transfer.trades"), "transfer.trades.allow_cash"),
         trades_require_counterparty_accept=_as_bool(_require(trades, "require_counterparty_accept", "transfer.trades"), "transfer.trades.require_counterparty_accept"),
         same_window_block_after_free_sign=_as_bool(_require(r, "same_window_block_after_free_sign", "transfer"), "transfer.same_window_block_after_free_sign"),
+        max_owners_per_season=_as_int(r.get("max_owners_per_season", 0), "transfer.max_owners_per_season"),
+        max_trades_per_window_per_player=_as_int(
+            trades.get("max_per_window_per_player", 0),
+            "transfer.trades.max_per_window_per_player"),
+        min_cash_per_player=_as_int(trades.get("min_cash_per_player", 0),
+                                    "transfer.trades.min_cash_per_player"),
     )
 
 
@@ -202,6 +209,19 @@ def _parse_lineup(r):
         except ValueError as e:
             raise ConfigError(f"unknown position {k!r} at lineup.backward_substitution") from e
         bs[pos] = _parse_position_list(v, f"lineup.backward_substitution.{k}")
+    gc_raw = r.get("group_caps", [])
+    if not isinstance(gc_raw, list):
+        raise ConfigError("lineup.group_caps must be a list")
+    group_caps = []
+    for i, item in enumerate(gc_raw):
+        if not isinstance(item, Mapping):
+            raise ConfigError(f"lineup.group_caps[{i}] must be a mapping")
+        positions = tuple(_parse_position_list(
+            _require(item, "positions", f"lineup.group_caps[{i}]"),
+            f"lineup.group_caps[{i}].positions"))
+        cap = _as_int(_require(item, "max", f"lineup.group_caps[{i}]"),
+                      f"lineup.group_caps[{i}].max")
+        group_caps.append((positions, cap))
     return LineupConfig(
         starters_min=_as_int(_require(r, "starters_min", "lineup"), "lineup.starters_min"),
         starters_max=_as_int(_require(r, "starters_max", "lineup"), "lineup.starters_max"),
@@ -210,6 +230,7 @@ def _parse_lineup(r):
         backward_substitution=bs,
         default_strategy=_as_str(_require(r, "default_strategy", "lineup"), "lineup.default_strategy"),
         misplaced_player_action=_as_str(_require(r, "misplaced_player_action", "lineup"), "lineup.misplaced_player_action"),
+        group_caps=tuple(group_caps),
     )
 
 
@@ -268,11 +289,16 @@ def _parse_bonuses(r):
         threshold_net_lt=_as_int(_require(bt, "threshold_net_lt", "bonuses.blue_team"), "bonuses.blue_team.threshold_net_lt"),
         formula=_as_str(_require(bt, "formula", "bonuses.blue_team"), "bonuses.blue_team.formula"),
     )
+    kwargs = {}
+    for opt in ("conceded_goal", "home_conceded"):
+        if opt in r:
+            kwargs[opt] = _parse_flat_bonus(r[opt], f"bonuses.{opt}")
     return BonusesConfig(
         assist=_parse_flat_bonus(_require(r, "assist", "bonuses"), "bonuses.assist"),
         red_card=_parse_flat_bonus(_require(r, "red_card", "bonuses"), "bonuses.red_card"),
         blue_team=blue,
         missed_penalty=_parse_flat_bonus(_require(r, "missed_penalty", "bonuses"), "bonuses.missed_penalty"),
+        **kwargs,
     )
 
 
@@ -308,6 +334,27 @@ def _parse_storage(r):
     )
 
 
+def _parse_cup(r):
+    """Optional section — absent means single-competition mode."""
+    if r is None:
+        return DEFAULT_CUP
+    if not isinstance(r, Mapping):
+        raise ConfigError("cup must be a mapping")
+    extra = r.get("extra_teams", [])
+    dual = r.get("league_teams_in_cup", [])
+    if not isinstance(extra, list) or not isinstance(dual, list):
+        raise ConfigError("cup.extra_teams / cup.league_teams_in_cup must be lists")
+    return CupConfig(
+        enabled=_as_bool(r.get("enabled", False), "cup.enabled"),
+        extra_teams=tuple(_as_str(t, "cup.extra_teams") for t in extra),
+        league_teams_in_cup=tuple(_as_str(t, "cup.league_teams_in_cup") for t in dual),
+        separate_after_group=_as_bool(r.get("separate_after_group", True),
+                                      "cup.separate_after_group"),
+        initial_cup_budget=_as_int(r.get("initial_cup_budget", 0),
+                                   "cup.initial_cup_budget"),
+    )
+
+
 # --- root ------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -327,6 +374,7 @@ class GameRules:
     prizes: PrizesConfig
     injury: InjuryConfig
     storage: StorageConfig
+    cup: CupConfig = DEFAULT_CUP
 
     @classmethod
     def from_dict(cls, raw):
@@ -346,6 +394,7 @@ class GameRules:
             prizes=_parse_prizes(_require(raw, "prizes", "")),
             injury=_parse_injury(_require(raw, "injury", "")),
             storage=_parse_storage(_require(raw, "storage", "")),
+            cup=_parse_cup(raw.get("cup")),
         )
 
     @classmethod

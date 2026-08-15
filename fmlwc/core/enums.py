@@ -11,17 +11,23 @@ import enum
 
 
 class Position(str, enum.Enum):
-    """Real-world football position. Values match the rule shorthand."""
+    """Real-world football position. Values match the rule shorthand.
+
+    W (winger) exists only in rule sets that use five positions
+    (FML/FMC 2024-25, 第十七条); FME-2021 configs simply never
+    reference it.
+    """
 
     G = "G"
     D = "D"
     M = "M"
+    W = "W"
     F = "F"
 
     @classmethod
     def order_high_to_low(cls) -> list["Position"]:
-        """Ordering used by cascade tie-break: F > M > D > G."""
-        return [cls.F, cls.M, cls.D, cls.G]
+        """Ordering used by cascade tie-break: F > W > M > D > G (第二十四条)."""
+        return [cls.F, cls.W, cls.M, cls.D, cls.G]
 
     def can_play_as(self, slot: "Position") -> bool:
         """Backward-substitution: a higher-numbered position can fill lower.
@@ -121,6 +127,18 @@ class MatchOutcome(str, enum.Enum):
     HOME_WIN = "HOME_WIN"
     AWAY_WIN = "AWAY_WIN"
     DRAW = "DRAW"
+
+
+class Competition(str, enum.Enum):
+    """Which competition a gameweek (and a lineup slot) belongs to.
+
+    LEAGUE — the round-robin fantasy league among managers.
+    CUP    — the parallel cup competition. Cup rosters may include players
+             from extra real teams that are not part of the league pool.
+    """
+
+    LEAGUE = "LEAGUE"
+    CUP = "CUP"
 
 
 class GameweekPhase(str, enum.Enum):

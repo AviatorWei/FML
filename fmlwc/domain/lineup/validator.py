@@ -87,6 +87,15 @@ class LineupValidator:
                     f"appearance cap exceeded: {pos.value} has {per_pos_count[pos]} > {cap}"
                 )
 
+        # composite caps across position groups (FML 第三十六条: ≤2 F, ≤4 F+W, ≤7 F+W+M)
+        for positions, cap in cfg.group_caps:
+            total = sum(per_pos_count.get(p, 0) for p in positions)
+            if total > cap:
+                names = "+".join(p.value for p in positions)
+                raise LineupError(
+                    f"group cap exceeded: {names} has {total} > {cap}"
+                )
+
         # size bounds
         if len(accepted) < cfg.starters_min:
             raise LineupError(
