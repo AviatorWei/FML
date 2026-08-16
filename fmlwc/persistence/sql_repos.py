@@ -148,6 +148,47 @@ class SqlManagerRepo:
         self.s.flush()
 
 
+class CupWalletManagerRepo(SqlManagerRepo):
+    """ManagerRepo view that reads/writes the CUP wallet (FMC 第十三条).
+
+    Use this when running FMC-scoped services (e.g. cup auction rounds) so
+    balance checks and debits hit ``Manager.cup_balance`` instead of the
+    league wallet. ``get``/``list_active`` return lightweight proxies whose
+    ``.balance`` is the cup balance; all roster methods are inherited.
+    """
+
+    class _Proxy:
+        __slots__ = ("_row",)
+
+        def __init__(self, row: Manager) -> None:
+            self._row = row
+
+        def __getattr__(self, name):
+            if name == "balance":
+                return self._row.cup_balance
+            return getattr(self._row, name)
+
+    def get(self, manager_id: int):
+        row = super().get(manager_id)
+        return self._Proxy(row) if row is not None else None
+
+    def list_active(self):
+        return [self._Proxy(m) for m in super().list_active()]
+
+    def adjust_balance(self, manager_id: int, delta: int, *, reason: str) -> None:  # noqa: ARG002
+        mgr = self.s.get(Manager, manager_id)
+        if mgr is None:
+            raise KeyError(f"Manager {manager_id} not found")
+        new_balance = mgr.cup_balance + delta
+        if new_balance < 0:
+            raise ValueError(
+                f"Cup balance would go negative for manager {manager_id}: "
+                f"{mgr.cup_balance} + {delta} = {new_balance}"
+            )
+        mgr.cup_balance = new_balance
+        self.s.flush()
+
+
 class SqlPlayerRepo:
     def __init__(self, session: Session) -> None:
         self.s = session
@@ -649,3 +690,202 @@ class SqlFreeSignRepo:
             .values(effective=True)
         )
         self.s.flush()
+
+
+# ---------------------------------------------------------------------------
+# Transfer — releases, trades, dismissals
+# ---------------------------------------------------------------------------
+
+class SqlReleaseRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def create(self, manager_id: int, player_id: int, posted_at: datetime) -> int:
+        from .models.transfer import Release
+        row = Release(manager_id=manager_id, player_id=player_id,
+                      posted_at=_dt(posted_at), revoked=False, effective=False)
+        self.s.add(row)
+        self.s.flush()
+        return row.id
+
+    def get(self, release_id: int):
+        from .models.transfer import Release
+        return self.s.get(Release, release_id)
+
+    def pending(self):
+        from .models.transfer import Release
+        stmt = (select(Release)
+                .where(Release.revoked.is_(False))
+                .where(Release.effective.is_(False)))
+        return list(self.s.scalars(stmt))
+
+    def pending_for_manager(self, manager_id: int):
+        from .models.transfer import Release
+        stmt = (select(Release)
+                .where(Release.manager_id == manager_id)
+                .where(Release.revoked.is_(False))
+                .where(Release.effective.is_(False)))
+        return list(self.s.scalars(stmt))
+
+    def mark_revoked(self, release_id: int) -> None:
+        from .models.transfer import Release
+        self.s.execute(update(Release).where(Release.id == release_id)
+                       .values(revoked=True))
+        self.s.flush()
+
+    def mark_effective(self, release_id: int) -> None:
+        from .models.transfer import Release
+        self.s.execute(update(Release).where(Release.id == release_id)
+                       .values(effective=True))
+        self.s.flush()
+
+
+class SqlTradeRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def create(self, window_id, initiator_id, counterparty_id, legs, proposed_at) -> int:
+        from ..core.enums import TradeSide, TradeStatus
+        from .models.transfer import Trade, TradeLeg
+        trade = Trade(window_id=window_id, initiator_id=initiator_id,
+                      counterparty_id=counterparty_id,
+                      status=TradeStatus.PROPOSED, proposed_at=_dt(proposed_at))
+        self.s.add(trade)
+        self.s.flush()
+        for leg in legs:
+            side = leg.side if isinstance(leg.side, TradeSide) else TradeSide(leg.side)
+            self.s.add(TradeLeg(trade_id=trade.id, side=side,
+                                player_id=leg.player_id,
+                                cash_amount=leg.cash_amount))
+        self.s.flush()
+        return trade.id
+
+    def get(self, trade_id: int):
+        from .models.transfer import Trade
+        return self.s.get(Trade, trade_id)
+
+    def legs_for(self, trade_id: int):
+        from .models.transfer import TradeLeg
+        return list(self.s.scalars(
+            select(TradeLeg).where(TradeLeg.trade_id == trade_id)))
+
+    def set_status(self, trade_id: int, status, resolved_at: datetime | None = None) -> None:
+        from .models.transfer import Trade
+        trade = self.s.get(Trade, trade_id)
+        if trade is None:
+            raise KeyError(f"Trade {trade_id} not found")
+        trade.status = status
+        if resolved_at is not None:
+            trade.resolved_at = _dt(resolved_at)
+        self.s.flush()
+
+    def proposed_in_window(self, window_id: int):
+        from ..core.enums import TradeStatus
+        from .models.transfer import Trade
+        stmt = (select(Trade)
+                .where(Trade.window_id == window_id)
+                .where(Trade.status == TradeStatus.PROPOSED))
+        return list(self.s.scalars(stmt))
+
+    def distinct_owners(self, player_id: int) -> set[int]:
+        stmt = (select(RosterEntry.manager_id)
+                .where(RosterEntry.player_id == player_id)
+                .distinct())
+        return set(self.s.scalars(stmt))
+
+    def accepted_trades_in_window(self, player_id: int, window_id: int) -> int:
+        from ..core.enums import TradeStatus
+        from .models.transfer import Trade, TradeLeg
+        stmt = (select(Trade.id)
+                .join(TradeLeg, TradeLeg.trade_id == Trade.id)
+                .where(Trade.window_id == window_id)
+                .where(Trade.status == TradeStatus.ACCEPTED)
+                .where(TradeLeg.player_id == player_id)
+                .distinct())
+        return len(list(self.s.scalars(stmt)))
+
+
+class SqlDismissalRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def create(self, manager_id: int, player_id: int, dismissed_at: datetime,
+               reason: str | None = None) -> int:
+        from .models.transfer import Dismissal
+        row = Dismissal(manager_id=manager_id, player_id=player_id,
+                        dismissed_at=_dt(dismissed_at), reason=reason)
+        self.s.add(row)
+        self.s.flush()
+        return row.id
+
+    def for_manager(self, manager_id: int):
+        from .models.transfer import Dismissal
+        return list(self.s.scalars(
+            select(Dismissal).where(Dismissal.manager_id == manager_id)))
+
+    def for_player(self, player_id: int):
+        from .models.transfer import Dismissal
+        return list(self.s.scalars(
+            select(Dismissal).where(Dismissal.player_id == player_id)))
+
+
+# ---------------------------------------------------------------------------
+# Knockout — snapshots, picks; injuries
+# ---------------------------------------------------------------------------
+
+class SqlSnapshotRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def create(self, manager_id: int, taken_at: datetime, reason: str,
+               entries: list[dict]) -> int:
+        from .models.knockout import RosterSnapshot
+        row = RosterSnapshot(manager_id=manager_id, taken_at=_dt(taken_at),
+                             reason=reason, entries=entries)
+        self.s.add(row)
+        self.s.flush()
+        return row.id
+
+    def for_reason(self, reason: str):
+        from .models.knockout import RosterSnapshot
+        return list(self.s.scalars(
+            select(RosterSnapshot).where(RosterSnapshot.reason == reason)))
+
+
+class SqlPickRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def create(self, knockout_fixture_id: int, picker_manager_id: int,
+               picked_player_id: int, picked_at: datetime) -> int:
+        from .models.knockout import Pick
+        row = Pick(knockout_fixture_id=knockout_fixture_id,
+                   picker_manager_id=picker_manager_id,
+                   picked_player_id=picked_player_id,
+                   picked_at=_dt(picked_at))
+        self.s.add(row)
+        self.s.flush()
+        return row.id
+
+    def for_fixture(self, knockout_fixture_id: int):
+        from .models.knockout import Pick
+        return list(self.s.scalars(
+            select(Pick).where(Pick.knockout_fixture_id == knockout_fixture_id)))
+
+
+class SqlInjuryRepo:
+    def __init__(self, session: Session) -> None:
+        self.s = session
+
+    def create(self, *, real_player_id: int, removed_at: datetime,
+               refund_amount: int, free_sign_grant: bool,
+               granted_to_manager_id: int | None) -> int:
+        from .models.injury import InjuryAdjustment
+        row = InjuryAdjustment(real_player_id=real_player_id,
+                               removed_at=_dt(removed_at),
+                               refund_amount=refund_amount,
+                               free_sign_grant=free_sign_grant,
+                               granted_to_manager_id=granted_to_manager_id)
+        self.s.add(row)
+        self.s.flush()
+        return row.id

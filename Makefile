@@ -1,13 +1,14 @@
-PYTHON  := $(HOME)/anaconda3/envs/fmlwc/bin/python
+PYTHON  := $(HOME)/anaconda3/envs/fml/bin/python
 PYTEST  := $(PYTHON) -m pytest
 RUFF    := $(PYTHON) -m ruff
 MYPY    := $(PYTHON) -m mypy
-SQLITE3 := $(HOME)/anaconda3/envs/fmlwc/bin/sqlite3
+SQLITE3 := $(HOME)/anaconda3/envs/fml/bin/sqlite3
 DB      ?= fmlwc.db
 
 OUT     ?= player_list.xlsx
+ROSTER_OUT ?=
 
-.PHONY: test test-v test-cov lint typecheck env-create env-update db-init db-reset db-shell export-players
+.PHONY: test test-v test-cov lint typecheck env-create env-update db-init db-reset db-shell export-players export-roster
 
 test:
 	$(PYTEST) tests/
@@ -28,7 +29,7 @@ env-create:
 	conda env create -f environment.yml
 
 env-update:
-	conda env update -n fmlwc -f environment.yml --prune
+	conda env update -n fml -f environment.yml --prune
 
 db-init:
 	$(PYTHON) scripts/init_db.py $(DB)
@@ -41,3 +42,6 @@ db-shell:
 
 export-players:
 	$(PYTHON) scripts/export_players.py --db $(DB) --out $(OUT)
+
+export-roster:
+	$(PYTHON) scripts/export_roster.py --db $(DB) $(if $(ROSTER_OUT),--out $(ROSTER_OUT),)

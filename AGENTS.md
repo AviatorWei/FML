@@ -325,6 +325,7 @@ Handles UEFA squad removals mid-tournament.
   `RULES.md` as the source.
 - `try_*` wrappers (non-raising, return a `Result` dataclass) belong on services that
   have a public CLI/web interface. See `FreeSignService.try_propose` as the pattern.
+- For every script required, or every new set of functionality, add them to the README file.
 
 ---
 

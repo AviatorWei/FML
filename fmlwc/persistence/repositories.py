@@ -192,6 +192,63 @@ class DismissalRepo(Protocol):
     def for_player(self, player_id: int) -> list["Dismissal"]: ...
 
 
+class ReleaseRepo(Protocol):
+    def create(self, manager_id: int, player_id: int, posted_at: datetime) -> int: ...
+    """Insert a pending Release row; returns its id."""
+
+    def get(self, release_id: int) -> Any: ...
+    def pending(self) -> list[Any]: ...
+    """All non-revoked, non-effective releases (for commit_due)."""
+
+    def pending_for_manager(self, manager_id: int) -> list[Any]: ...
+    def mark_revoked(self, release_id: int) -> None: ...
+    def mark_effective(self, release_id: int) -> None: ...
+
+
+class TradeRepo(Protocol):
+    def create(
+        self,
+        window_id: int | None,
+        initiator_id: int,
+        counterparty_id: int,
+        legs: Any,           # sequence of objects with .side/.player_id/.cash_amount
+        proposed_at: datetime,
+    ) -> int: ...
+    """Insert Trade (PROPOSED) + TradeLeg rows; returns the trade id."""
+
+    def get(self, trade_id: int) -> Any: ...
+    def legs_for(self, trade_id: int) -> list[Any]: ...
+    def set_status(self, trade_id: int, status: Any,
+                   resolved_at: datetime | None = None) -> None: ...
+    def proposed_in_window(self, window_id: int) -> list[Any]: ...
+    def distinct_owners(self, player_id: int) -> set[int]: ...
+    """Every manager id that has ever held the player (rule 第五十条)."""
+
+    def accepted_trades_in_window(self, player_id: int, window_id: int) -> int: ...
+    """How many ACCEPTED trades in this window moved the player (第五十条)."""
+
+
+class SnapshotRepo(Protocol):
+    def create(self, manager_id: int, taken_at: datetime, reason: str,
+               entries: list[dict]) -> int: ...
+    """Persist a RosterSnapshot; returns its id."""
+
+    def for_reason(self, reason: str) -> list[Any]: ...
+
+
+class PickRepo(Protocol):
+    def create(self, knockout_fixture_id: int, picker_manager_id: int,
+               picked_player_id: int, picked_at: datetime) -> int: ...
+    def for_fixture(self, knockout_fixture_id: int) -> list[Any]: ...
+
+
+class InjuryRepo(Protocol):
+    def create(self, *, real_player_id: int, removed_at: datetime,
+               refund_amount: int, free_sign_grant: bool,
+               granted_to_manager_id: int | None) -> int: ...
+    """Persist an InjuryAdjustment audit record; returns its id."""
+
+
 # ===========================================================================
 # SQLAlchemy skeleton implementations (not yet implemented)
 # ===========================================================================

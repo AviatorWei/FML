@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FMLWC Admin — UI Mockup</title>
+<style>
+  :root{
+    --pitch:#15803d; --pitch-dark:#166534; --pitch-light:#dcfce7; --pitch-mid:#86efac;
+    --ink:#0f172a; --muted:#64748b; --card:#ffffff; --bg:#f1f5f9;
+    --danger:#dc2626; --warn:#d97706; --ok:#16a34a; --border:#e2e8f0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif}
+  body{background:var(--bg);color:var(--ink);min-height:100vh}
+  header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+  .hwrap{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800}
+  .logo .ball{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#4ade80,var(--pitch-dark));display:grid;place-items:center;font-size:18px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+  .logo small{display:block;font-weight:600;color:var(--pitch);font-size:10px}
+  nav{display:flex;gap:4px;flex-wrap:wrap}
+  nav button{border:0;background:none;padding:8px 12px;border-radius:10px;font-weight:600;font-size:13px;color:#334155;cursor:pointer}
+  nav button.active{background:var(--pitch);color:#fff;box-shadow:0 2px 6px rgba(21,128,61,.3)}
+  nav button:hover:not(.active){background:var(--pitch-light)}
+  .rolebadge{margin-left:auto;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:99px}
+  main{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .grid{display:grid;gap:14px}
+  .grid.cols3{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  .grid.cols2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card h3{font-size:14px;margin-bottom:2px}
+  .card .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .btn{border:0;border-radius:9px;padding:7px 14px;font-weight:700;font-size:12.5px;cursor:pointer;background:var(--pitch);color:#fff}
+  .btn.ghost{background:var(--pitch-light);color:var(--pitch-dark)}
+  .btn.gray{background:#e2e8f0;color:#334155}
+  .btn.warn{background:#fef3c7;color:#92400e}
+  .btn.danger{background:#fee2e2;color:var(--danger)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .chip{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700}
+  .chip.ok{background:var(--pitch-light);color:var(--pitch-dark)}
+  .chip.warn{background:#fef3c7;color:#92400e}
+  .chip.err{background:#fee2e2;color:var(--danger)}
+  .chip.info{background:#e0f2fe;color:#075985}
+  .chip.gray{background:#e2e8f0;color:#475569}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--border)}
+  td{padding:7px 8px;border-bottom:1px solid var(--border)}
+  tr:hover td{background:#f8fafc}
+  .flex{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .spread{justify-content:space-between}
+  select,input[type=text],input[type=number]{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;background:#fff}
+  .steps{display:flex;gap:0;margin-bottom:18px;flex-wrap:wrap}
+  .step{flex:1;min-width:120px;text-align:center;padding:10px 6px;font-size:12px;font-weight:700;color:var(--muted);border-bottom:3px solid var(--border);cursor:pointer}
+  .step.active{color:var(--pitch-dark);border-color:var(--pitch)}
+  .step.done{color:var(--ok);border-color:var(--pitch-mid)}
+  .dropzone{border:2px dashed var(--pitch-mid);border-radius:14px;padding:26px;text-align:center;color:var(--pitch-dark);background:var(--pitch-light);font-size:13px;font-weight:600;margin-bottom:14px;cursor:pointer}
+  .pitch{background:linear-gradient(180deg,#22c55e11,#15803d22),repeating-linear-gradient(180deg,#16a34a0d 0 40px,transparent 40px 80px);border:1.5px solid var(--pitch-mid);border-radius:14px;padding:14px;min-height:280px}
+  .slotrow{display:flex;gap:8px;justify-content:center;margin:10px 0;flex-wrap:wrap}
+  .slot{background:#fff;border:1.5px solid var(--pitch-mid);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;min-width:104px;text-align:center;position:relative}
+  .slot.empty{border-style:dashed;color:#94a3b8;font-weight:600}
+  .slot .pos{font-size:9px;color:var(--pitch);display:block}
+  .slot .x{position:absolute;top:-7px;right:-7px;width:17px;height:17px;border-radius:99px;background:#fee2e2;color:var(--danger);font-size:10px;font-weight:800;border:0;cursor:pointer;line-height:1}
+  .hotkeys{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .hk{border:1.5px solid var(--border);background:#fff;border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer}
+  .hk.sel{border-color:var(--pitch);background:var(--pitch-light);color:var(--pitch-dark)}
+  .hk kbd{background:#f1f5f9;border-radius:4px;padding:0 4px;font-size:10px;color:var(--muted);margin-right:4px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+  .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}
+  .stat b{font-size:20px;display:block}
+  .stat span{font-size:11px;color:var(--muted)}
+  .note{font-size:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:9px 12px;margin:10px 0}
+  .mono{font-family:Consolas,monospace;font-size:12px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:#334155;overflow-x:auto;white-space:pre}
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="logo"><div class="ball">⚽</div><div>FMLWC<small>Admin Console — mockup</small></div></div>
+  <nav id="nav"></nav>
+  <span class="rolebadge">ADMIN</span>
+</div></header>
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+const PAGES = [
+  {id:'exports', label:'📦 Exports'},
+  {id:'auction', label:'🔨 Auction Desk'},
+  {id:'lineup', label:'📋 Lineups'},
+  {id:'events', label:'⚡ Events'},
+  {id:'gameweeks', label:'📅 Gameweeks'},
+  {id:'roster', label:'👥 Roster Editor'},
+];
+let page='exports';
+const $=s=>document.querySelector(s);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
+function nav(){$('#nav').innerHTML=PAGES.map(p=>`<button class="${p.id===page?'active':''}" onclick="go('${p.id}')">${p.label}</button>`).join('');}
+function go(p){page=p;render();}
+
+/* ---------- sample data ---------- */
+const MGRS=['ENG','GER','FRA','ESP','ITA','POR','NED','BEL'];
+const ROSTER=[
+  {id:9,  name:'Harry Kane',      pos:'F', team:'ENG', price:131},
+  {id:10, name:'Jude Bellingham', pos:'M', team:'ENG', price:118},
+  {id:17, name:'Declan Rice',     pos:'M', team:'ENG', price:95},
+  {id:2,  name:'Kyle Walker',     pos:'D', team:'ENG', price:40},
+  {id:6,  name:'Marc Guéhi',      pos:'D', team:'ENG', price:35},
+  {id:5,  name:'John Stones',     pos:'D', team:'ENG', price:44},
+  {id:1,  name:'Jordan Pickford', pos:'G', team:'ENG', price:28},
+  {id:11, name:'Phil Foden',      pos:'M', team:'ENG', price:110},
+  {id:7,  name:'Bukayo Saka',     pos:'F', team:'ENG', price:120},
+];
+const EXPORTS=[
+  ['Player list','PlayerListExporter · ID/Name/Nation/Pos/Team/Price','players.xlsx','622 rows','xlsx,csv'],
+  ['Bid templates','FME_2026_Bid3_<CODE>.xlsx per manager','bid-template?round=3','8 files → zip','xlsx,zip'],
+  ['Auction announcement 暗标公示','AuctionAnnouncementFormatter','auction/2/announcement.txt','round 2 · 47 bids','txt'],
+  ['Auction results','AuctionResult rows','auction/2/results.csv','round 2 · 19 awards','csv,xlsx'],
+  ['Rosters','incl. acquired_via / price / at','rosters.xlsx','71 active entries','xlsx,csv'],
+  ['Lineups','per gameweek','lineups.csv?gameweek=4','16 lineups','csv'],
+  ['Match events','per gameweek','events.csv?gameweek=4','63 events','csv'],
+  ['Standings + results','group tables & bracket','standings.xlsx','12 results','xlsx,csv'],
+  ['Athletics','player / manager / per-pair (3 sheets)','athletics.xlsx','622+8+96 rows','xlsx'],
+  ['Transfer ledger','free signs · trades · releases · dismissals','transfers.xlsx','23 rows','xlsx'],
+  ['Prize ledger','BonusAward + qualify/advance prizes','prizes.csv','14 rows','csv'],
+  ['Full season archive','everything above','season.zip','~2.1 MB','zip'],
+];
+
+/* ---------- pages ---------- */
+function exportsPage(){return `
+  <h1>Export Center</h1><div class="sub">Every artefact is a GET endpoint returning a file — cards below map 1:1 to <span class="mono" style="padding:1px 5px">/api/export/*</span></div>
+  <div class="grid cols3">${EXPORTS.map(e=>`
+    <div class="card"><h3>${e[0]}</h3><div class="meta">${e[1]}</div>
+      <div class="flex spread"><span class="chip gray">${e[3]}</span>
+      <span class="flex">
+        ${e[4].split(',').map((f,i)=>`<button class="btn ${i?'ghost':''}" onclick="toast('Downloading ${e[2].split('?')[0].replace(/\\.[a-z]+$/, '')}.${f} …')">${f}</button>`).join('')}
+        <button class="btn gray" title="copy curl" onclick="toast('curl copied: GET /api/export/${e[2]}')">⧉</button>
+      </span></div>
+    </div>`).join('')}
+  </div>`;}
+
+let aStep=2;
+const PARSED=[
+  ['ENG','FME_2026_Bid3_ENG.xlsx',9,585,'ok'],['GER','FME_2026_Bid3_GER.xlsx',11,612,'ok'],
+  ['FRA','FME_2026_Bid3_FRA.xlsx',7,480,'ok'],['ESP','FME_2026_Bid3_ESP.xlsx',8,530,'warn'],
+  ['ITA','FME_2026_Bid3_ITA.xlsx',10,470,'ok'],['POR','—',0,0,'missing'],
+];
+const RESOLVE=[
+  ['Lamine Yamal (F · ESP)', [['GER','200m','rank 1','AWARDED','ok'],['ENG','185m','rank 1','LOST','gray'],['FRA','185m','rank 2','LOST — tie broken by rank','gray']]],
+  ['Florian Wirtz (M · GER)', [['ESP','160m','rank 1','AWARDED','ok'],['ITA','150m','rank 3','INVALID_BUDGET — over balance after cascade','err']]],
+  ['Théo Hernandez (D · FRA)', [['ENG','55m','rank 2','INVALID_POS_CAP — 4th D bid, cap 3','err'],['GER','48m','rank 1','AWARDED','ok']]],
+];
+function auctionPage(){
+  const steps=['1 · Round setup','2 · Collect sheets','3 · Resolve (dry run)','4 · Commit','5 · Publish'];
+  let body='';
+  if(aStep===1) body=`<div class="card"><h3>Open auction round</h3><div class="meta">POST /api/admin/auction/rounds</div>
+    <div class="flex"><label>Index <input type="number" value="3" style="width:70px"></label>
+    <label>Opens <input type="text" value="2026-07-04 12:00"></label>
+    <label>Closes <input type="text" value="2026-07-06 20:00"></label>
+    <button class="btn" onclick="aStep=2;render();toast('Round 3 opened')">Open round</button></div></div>`;
+  if(aStep===2) body=`
+    <div class="dropzone" onclick="toast('5 files parsed via XlsxBidReader')">⬆ Drop FME_2026_Bid3_&lt;CODE&gt;.xlsx files here (multi-file)</div>
+    <div class="card"><table><tr><th>Manager</th><th>File</th><th>Bids</th><th>Total</th><th>Status</th><th></th></tr>
+    ${PARSED.map(p=>`<tr><td><b>${p[0]}</b></td><td>${p[1]}</td><td>${p[2]||'—'}</td><td>${p[3]?p[3]+'m':'—'}</td>
+      <td>${p[4]==='ok'?'<span class="chip ok">parsed ✓</span>':p[4]==='warn'?'<span class="chip warn">1 bid &lt; 10m min</span>':'<span class="chip err">not received</span>'}</td>
+      <td>${p[4]!=='missing'?'<button class="btn gray" onclick="toast(\\'Replace file\\')">replace</button>':''}</td></tr>`).join('')}
+    </table>
+    <div class="note">POR has not submitted. Committing submissions is allowed — POR simply wins nothing this round.</div>
+    <div class="flex" style="justify-content:flex-end"><button class="btn" onclick="aStep=3;render();toast('Submissions persisted')">Persist submissions →</button></div></div>`;
+  if(aStep===3) body=`
+    <div class="card"><div class="flex spread"><h3>Dry-run resolution — round 3</h3>
+      <span class="flex"><span class="chip ok">31 AWARDED/LOST</span><span class="chip err">6 invalidated</span></span></div>
+      <div class="meta">POST …/resolve?dry_run=true · BidValidator → CascadeInvalidator (二.4/二.5) → AmountRankTimeDraw (二.6)</div>
+      ${RESOLVE.map(r=>`<h3 style="margin:14px 0 4px">${r[0]}</h3><table><tr><th>Bidder</th><th>Amount</th><th>Rank</th><th>Outcome</th></tr>
+        ${r[1].map(b=>`<tr><td>${b[0]}</td><td>${b[1]}</td><td>${b[2]}</td><td><span class="chip ${b[4]}">${b[3]}</span></td></tr>`).join('')}</table>`).join('')}
+      <h3 style="margin:16px 0 4px">Balance deltas</h3>
+      <div class="flex">${['GER −248m → 122m','ESP −160m → 95m','ENG −0m → 305m','FRA −48m → 210m'].map(x=>`<span class="chip info">${x}</span>`).join('')}</div>
+      <div class="flex" style="justify-content:flex-end;margin-top:12px">
+        <button class="btn gray" onclick="aStep=2;render()">← Back</button>
+        <button class="btn" onclick="aStep=4;render();toast('Round 3 committed — rosters updated')">Looks right — commit for real</button></div></div>`;
+  if(aStep>=4) body=`
+    <div class="card"><h3>Round 3 committed ✓</h3><div class="meta">19 AuctionResults · 19 RosterEntries (via=AUCTION) · balances debited · AUCTION_OTHERS_NEXT_WINDOW eligibility seeded · round CLOSED</div>
+    <div class="flex"><button class="btn" onclick="toast('announcement.txt downloaded')">⬇ 暗标公示 announcement.txt</button>
+    <button class="btn ghost" onclick="toast('results.csv downloaded')">⬇ results.csv</button>
+    <button class="btn gray" onclick="aStep=1;render()">Start round 4</button></div></div>`;
+  return `<h1>Auction Desk</h1><div class="sub">Wizard mirrors the engine pipeline — nothing is written until step 4</div>
+    <div class="steps">${steps.map((s,i)=>`<div class="step ${i+1===aStep?'active':i+1<aStep?'done':''}" onclick="aStep=${i+1};render()">${s}</div>`).join('')}</div>${body}`;
+}
+
+let lineup=[{id:1,slot:'G'},{id:2,slot:'D'},{id:5,slot:'D'},{id:6,slot:'D'},{id:10,slot:'M'},{id:11,slot:'M'},{id:17,slot:'M'},{id:9,slot:'F'},{id:7,slot:'F'},{id:5.1,slot:'M',misplaced:true}];
+function lineupPage(){
+  const caps={G:1,D:3,M:4,F:2};
+  const bySlot=s=>lineup.filter(l=>l.slot===s&&!l.misplaced).map(l=>ROSTER.find(r=>r.id===l.id));
+  const inLineup=id=>lineup.some(l=>l.id===id);
+  const row=(s,label)=>{const ps=bySlot(s);return `<div class="slotrow">${ps.map(p=>`
+      <div class="slot"><span class="pos">${label} · slot ${s}</span>${p.name}<button class="x" onclick="rmStarter(${p.id})">✕</button></div>`).join('')}
+      ${Array(caps[s]-ps.length).fill(`<div class="slot empty"><span class="pos">${label}</span>+ add</div>`).join('')}</div>`;};
+  return `<h1>Lineup Entry — ENG · Gameweek 4 (QF)</h1>
+  <div class="sub">Deadline in <b style="color:var(--danger)">03:41:22</b> · PUT /api/lineups/4/1 · live check via POST /api/lineups/validate</div>
+  <div class="grid cols2">
+    <div class="card"><h3>Roster (9 active)</h3><div class="meta">click to add to native slot; change slot for backward substitution D→M/F, M→F</div>
+      <table><tr><th>Player</th><th>Pos</th><th>Price</th><th></th></tr>
+      ${ROSTER.map(p=>`<tr><td>${p.name}</td><td><span class="chip info">${p.pos}</span></td><td>${p.price}m</td>
+        <td>${inLineup(p.id)?'<span class="chip ok">in lineup</span>':`<button class="btn ghost" onclick="addStarter(${p.id})">add</button>`}</td></tr>`).join('')}</table></div>
+    <div>
+      <div class="pitch">
+        ${row('F','Forwards')}${row('M','Midfield')}${row('D','Defence')}${row('G','Keeper')}
+      </div>
+      <div class="card" style="margin-top:12px"><h3>Validation preview (rule 四)</h3>
+        <div class="flex" style="margin:8px 0">
+          <span class="chip ok">size ${lineup.filter(l=>!l.misplaced).length}/8–10 ✓</span>
+          <span class="chip ok">G 1/1 · D 3/3 · M ${bySlot('M').length}/4 · F 2/2 ✓</span>
+          <span class="chip ok">≥1 GK ✓</span>
+        </div>
+        <div class="note">⚠ 1 dropped: <b>Jordan Pickford</b> also listed in a D slot — misplaced (G → D not allowed; only D→M/F and M→F substitute backward). Dropped players score nothing (四.9).</div>
+        <h3 style="margin:10px 0 4px">PK order (knockout)</h3>
+        <div class="flex">${['Kane','Saka','Foden','Bellingham','Rice'].map((n,i)=>`<span class="chip gray">☰ ${i+1}. ${n}</span>`).join('')}</div>
+        <div class="flex" style="justify-content:flex-end;margin-top:12px"><button class="btn" onclick="toast('Lineup submitted — server time stamped')">Submit lineup</button></div>
+      </div></div>
+  </div>`;
+}
+function addStarter(id){const p=ROSTER.find(r=>r.id===id);if(!lineup.some(l=>l.id===id)){lineup.push({id,slot:p.pos});toast(p.name+' added to '+p.pos+' slot');}render();}
+function rmStarter(id){lineup=lineup.filter(l=>l.id!==id);render();}
+
+let evSel='GOAL';
+const EV_TYPES=[['G','GOAL'],['O','OWN_GOAL'],['A','ASSIST'],['Y','YELLOW'],['2','SECOND_YELLOW_RED'],['R','RED'],['S','SAVED_PENALTY_BY_GK'],['M','MISSED_PENALTY']];
+let EVLOG=[
+  ['GER 2:1 FRA','K. Havertz','GOAL',"23'",'',''],
+  ['GER 2:1 FRA','K. Mbappé','GOAL',"41'",'',''],
+  ['GER 2:1 FRA','J. Musiala','GOAL',"78'",'',''],
+  ['GER 2:1 FRA','A. Rüdiger','YELLOW',"85'",'',''],
+  ['ESP 1:1 ITA (4-2 p)','G. Donnarumma','SAVED_PENALTY_BY_GK',"120'",'ET',''],
+  ['ESP 1:1 ITA (4-2 p)','Á. Morata','MISSED_PENALTY','—','','SHOOTOUT'],
+];
+function eventsPage(){return `
+  <h1>Event Entry — Gameweek 4</h1>
+  <div class="sub">Keyed by (gameweek, player) — no fixture id needed · POST /api/admin/events · hotkeys G O A Y 2 R S M</div>
+  <div class="card" style="margin-bottom:14px"><h3>New event</h3>
+    <div class="flex" style="margin:8px 0">
+      <input type="text" placeholder="🔍 player search — name or ID…" style="flex:1;min-width:200px" id="evplayer">
+      <input type="number" placeholder="min" style="width:70px">
+      <label class="flex" style="font-size:12px"><input type="checkbox"> ET</label>
+      <label class="flex" style="font-size:12px"><input type="checkbox"> shootout</label>
+    </div>
+    <div class="hotkeys">${EV_TYPES.map(t=>`<button class="hk ${evSel===t[1]?'sel':''}" onclick="evSel='${t[1]}';render()"><kbd>${t[0]}</kbd>${t[1]}</button>`).join('')}</div>
+    <div class="note">⚠ guards: SAVED_PENALTY_BY_GK on non-GK · shootout events excluded from FME goal counting (零.4) · player in no submitted lineup → "won't score for anyone"</div>
+    <div class="flex" style="justify-content:flex-end"><button class="btn" onclick="addEvent()">Add event ⏎ (focus returns to search)</button></div>
+  </div>
+  <div class="grid cols2">
+    <div class="card"><h3>Event log — GW4 (${EVLOG.length})</h3>
+      <table><tr><th>Real match</th><th>Player</th><th>Type</th><th>Min</th><th></th></tr>
+      ${EVLOG.map((e,i)=>`<tr><td style="font-size:11px;color:var(--muted)">${e[0]}</td><td>${e[1]}</td>
+        <td><span class="chip ${e[2]==='GOAL'?'ok':e[2].includes('RED')?'err':'gray'}">${e[2]}${e[4]?' · ET':''}${e[5]?' · PK-SO':''}</span></td>
+        <td>${e[3]}</td><td><button class="btn danger" onclick="EVLOG.splice(${i},1);render()">✕</button></td></tr>`).join('')}</table></div>
+    <div class="card"><h3>Live valid-goal tally (ValidGoalCalculator preview)</h3>
+      <div class="meta">only starters, regular + extra time; shootout excluded</div>
+      <table><tr><th>Manager</th><th>Valid goals GW4</th><th>From</th></tr>
+        <tr><td><b>ENG</b></td><td>2</td><td>Havertz ×1, Musiala ×1 (both ENG starters)</td></tr>
+        <tr><td><b>GER</b></td><td>1</td><td>Mbappé ×1</td></tr>
+        <tr><td><b>ESP</b></td><td>1</td><td>Donnarumma saved pen ×1</td></tr>
+        <tr><td><b>ITA</b></td><td>0</td><td>Morata miss excluded (shootout)</td></tr></table>
+      <div class="flex" style="margin-top:10px"><button class="btn ghost" onclick="toast('events.csv template downloaded')">⬇ CSV template</button>
+      <button class="btn gray" onclick="toast('Bulk import: dry-run diff shown before commit')">⬆ Bulk CSV import</button></div>
+    </div>
+  </div>`;}
+function addEvent(){const v=$('#evplayer')?.value||'B. Saka';EVLOG.unshift(['GER 2:1 FRA',v,evSel,"90'",'','']);toast('Event added: '+v+' · '+evSel);render();}
+
+function gameweeksPage(){
+  const GWS=[
+    ['GW1 · GROUP','FINALIZED','8/8 lineups · 51 events · locked'],
+    ['GW2 · GROUP','FINALIZED','8/8 lineups · 47 events · locked'],
+    ['GW3 · GROUP','FINALIZED','7/8 lineups (1 default applied) · 58 events · locked'],
+    ['GW4 · QF','LIVE','6/8 lineups · 63 events so far'],
+    ['GW5 · SF','PENDING','deadline 2026-07-09 18:00'],
+    ['GW6 · F','PENDING','deadline 2026-07-13 18:00'],
+  ];
+  return `<h1>Gameweek Lifecycle</h1><div class="sub">PENDING → LIVE (lineups lock) → FINALIZED (settle pipeline runs)</div>
+  <div class="statgrid">
+    <div class="stat"><b>4</b><span>current GW (QF)</span></div><div class="stat"><b>6/8</b><span>lineups in</span></div>
+    <div class="stat"><b>63</b><span>events entered</span></div><div class="stat"><b>2</b><span>fixtures awaiting PK</span></div></div>
+  <div class="grid cols3">${GWS.map(g=>`<div class="card"><div class="flex spread"><h3>${g[0]}</h3>
+    <span class="chip ${g[1]==='FINALIZED'?'ok':g[1]==='LIVE'?'warn':'gray'}">${g[1]}</span></div>
+    <div class="meta">${g[2]}</div>
+    <div class="flex">${g[1]==='PENDING'?'<button class="btn warn" onclick="toast(\'GW set LIVE — lineups locked\')">Set LIVE</button>':''}
+    ${g[1]==='LIVE'?'<button class="btn" onclick="toast(\'Settlement report: defaults applied → scoring → bonuses → bracket updated\')">Finalize ▶</button><button class="btn ghost" onclick="toast(\'PK panel: PkResolver top-5 breakdown shown\')">PK panel</button>':''}
+    ${g[1]==='FINALIZED'?'<button class="btn gray" onclick="toast(\'Settlement report reopened (read-only)\')">View report</button>':''}</div></div>`).join('')}</div>
+  <div class="card" style="margin-top:14px"><h3>PK resolution — QF2 · ESP vs ITA (tied 1:1)</h3>
+  <div class="meta">PkResolver: 2×G + 1×A − 0.3×Y − 0.7×2Y − 1×R + 0.5 (real team advanced) · top-5 sums → top-6 → …</div>
+  <table><tr><th></th><th>Top-5 sum</th><th>Best players</th><th>Result</th></tr>
+  <tr><td><b>ESP</b></td><td>11.5</td><td>Yamal 4.5 · Pedri 3.0 · Rodri 2.5 …</td><td rowspan="2"><span class="chip ok">ESP advances (11.5 &gt; 9.8)</span></td></tr>
+  <tr><td><b>ITA</b></td><td>9.8</td><td>Barella 3.5 · Donnarumma 2.8 …</td></tr></table>
+  <div class="flex" style="justify-content:flex-end;margin-top:10px"><button class="btn" onclick="toast('pk_winner_id written to MatchResult')">Confirm PK winner</button></div></div>`;
+}
+
+function rosterPage(){return `
+  <h1>Raw Roster Editor</h1><div class="sub">Escape hatch — every write still runs service-layer checks and records acquired_via</div>
+  <div class="card" style="margin-bottom:14px"><div class="flex">
+    <select><option>All managers</option>${MGRS.map(m=>`<option>${m}</option>`).join('')}</select>
+    <select><option>Active only</option><option>Include released</option></select>
+    <span style="flex:1"></span>
+    <button class="btn ghost" onclick="toast('rosters.xlsx downloaded — same format re-importable')">⬇ Export</button>
+    <button class="btn gray" onclick="toast('Import: diff preview → commit (dry-run first)')">⬆ Bulk import</button>
+    <button class="btn" onclick="toast('Add entry: player picker → via/price/date')">+ Add entry</button></div></div>
+  <div class="card"><table><tr><th>Manager</th><th>Player</th><th>Pos</th><th>Via</th><th>Price</th><th>Acquired</th><th>Status</th><th></th></tr>
+    <tr><td>ENG</td><td>Harry Kane</td><td>F</td><td><span class="chip info">AUCTION</span></td><td>131m</td><td>06-12</td><td><span class="chip ok">active</span></td><td><button class="btn danger" onclick="toast('Release flow: fee + revoke window + RELEASED_LIFETIME warning')">release</button></td></tr>
+    <tr><td>ENG</td><td>Bukayo Saka</td><td>F</td><td><span class="chip info">AUCTION</span></td><td>120m</td><td>06-12</td><td><span class="chip ok">active</span></td><td><button class="btn danger">release</button></td></tr>
+    <tr><td>GER</td><td>Lamine Yamal</td><td>F</td><td><span class="chip info">AUCTION</span></td><td>200m</td><td>07-03</td><td><span class="chip ok">active</span></td><td><button class="btn danger">release</button></td></tr>
+    <tr><td>FRA</td><td>N. Williams</td><td>F</td><td><span class="chip warn">FREE_SIGN</span></td><td>10m</td><td>06-20</td><td><span class="chip ok">active</span></td><td><button class="btn danger">release</button></td></tr>
+    <tr><td>ESP</td><td>Pedri</td><td>M</td><td><span class="chip gray">TRADE</span></td><td>—</td><td>06-25</td><td><span class="chip ok">active</span></td><td><button class="btn danger">release</button></td></tr>
+    <tr><td>ITA</td><td>G. Scamacca</td><td>F</td><td><span class="chip err">INJURY_GRANT</span></td><td>0m</td><td>06-28</td><td><span class="chip ok">active</span></td><td><button class="btn danger">release</button></td></tr>
+    <tr style="opacity:.55"><td>ITA</td><td>M. Retegui</td><td>F</td><td><span class="chip info">AUCTION</span></td><td>60m</td><td>06-12</td><td><span class="chip err">released 06-28 (injury)</span></td><td></td></tr>
+  </table>
+  <div class="note">Related flows: <b>Dismissal</b> (admin, immediate, DISMISSED_LIFETIME) · <b>Injury adjustment</b> (refund + optional free-sign grant) · <b>KO pick</b> (blacklist-checked) — each has its own modal with the engine's eligibility errors shown verbatim.</div></div>`;}
+
+function render(){
+  nav();
+  $('#main').innerHTML={exports:exportsPage,auction:auctionPage,lineup:lineupPage,events:eventsPage,gameweeks:gameweeksPage,roster:rosterPage}[page]();
+}
+render();
+</script>
+</body>
+</html>

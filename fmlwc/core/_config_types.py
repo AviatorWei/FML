@@ -70,6 +70,13 @@ class TransferConfig:
     trades_allow_cash: bool
     trades_require_counterparty_accept: bool
     same_window_block_after_free_sign: bool
+    # FML 第五十条: a player may belong to at most N managers per season
+    # (0 = unlimited, FML 2024-25 uses 3), and be traded at most once per
+    # window. 第四十九条(2): players-for-cash requires ≥ min_cash_per_player
+    # per player moved.
+    max_owners_per_season: int = 0
+    max_trades_per_window_per_player: int = 0
+    min_cash_per_player: int = 0
 
 
 @dataclass(frozen=True)
@@ -88,6 +95,9 @@ class LineupConfig:
     backward_substitution: dict[Position, list[Position]]
     default_strategy: str
     misplaced_player_action: str
+    # Composite caps across several positions (FML 第三十六条):
+    # e.g. ((F,), 2), ((F, W), 4), ((F, W, M), 7). Empty for FME-2021.
+    group_caps: tuple[tuple[tuple[Position, ...], int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -150,6 +160,10 @@ class BonusesConfig:
     red_card: FlatBonusConfig
     blue_team: BlueTeamConfig
     missed_penalty: FlatBonusConfig
+    # FML 第十二条: 5m per opponent FML goal each round (paid next window).
+    conceded_goal: FlatBonusConfig = FlatBonusConfig(enabled=False, per_event=0)
+    # FMC 第六十七条(4): 主场失球奖 — home side, 5m per goal conceded.
+    home_conceded: FlatBonusConfig = FlatBonusConfig(enabled=False, per_event=0)
 
 
 @dataclass(frozen=True)
@@ -178,3 +192,36 @@ class StorageConfig:
     driver: str
     url: str
     echo: bool
+
+
+@dataclass(frozen=True)
+class CupConfig:
+    """Dual-competition (league + cup) mode.
+
+    * ``extra_teams``          — real-team codes that exist ONLY in the cup;
+                                 their players are cup-exclusive signings.
+    * ``league_teams_in_cup``  — real-team codes from the league pool whose
+                                 players are dual-eligible (league AND cup)
+                                 while the cup is in its group stage.
+    * ``separate_after_group`` — when True, once the cup enters knockout,
+                                 eligibility separates: every dual-eligible
+                                 player counts for exactly one competition
+                                 (their declared one; undeclared → LEAGUE).
+    """
+
+    enabled: bool
+    extra_teams: tuple[str, ...]
+    league_teams_in_cup: tuple[str, ...]
+    separate_after_group: bool
+    # FMC 第十三条: initial cup wallet (only spendable on cup-exclusive
+    # players during the cup group stage; unrestricted after separation).
+    initial_cup_budget: int = 0
+
+
+DEFAULT_CUP = CupConfig(
+    enabled=False,
+    extra_teams=(),
+    league_teams_in_cup=(),
+    separate_after_group=True,
+    initial_cup_budget=0,
+)

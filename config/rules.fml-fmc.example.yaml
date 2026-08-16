@@ -1,0 +1,149 @@
+# FML + FMC 2024-25 双线配置示例 (league + cup, per fml-fmc-rules.md)
+# 与 rules.example.yaml (FME-2021 单杯赛) 对照使用。
+
+scope:
+  name: "FML/FMC 2024-25"
+  short: "FMLFMC"
+  timezone: "Asia/Shanghai"
+
+managers:
+  count: 16
+  initial_budget: 600m        # FML 第十二条
+  groups: 1                   # FML 是单表双循环，无小组
+
+roster:
+  total_cap: 22               # FML 第二十三条 / FMC 第二十四条
+  position_caps:              # FML 对阵容无分位置上限，设为不约束
+    G: 22
+    D: 22
+    M: 22
+    W: 22
+    F: 22
+
+auction:                      # FML 第四章 / FMC 第四章
+  rounds:
+    - { index: 1, opens_at: "2024-08-30T20:00:00+08:00", closes_at: "2024-09-01T20:00:00+08:00" }
+    - { index: 2, opens_at: "2024-09-03T20:00:00+08:00", closes_at: "2024-09-05T20:00:00+08:00" }
+    - { index: 3, opens_at: "2025-02-05T20:00:00+08:00", closes_at: "2025-02-07T20:00:00+08:00" }
+  min_bid: 10                 # 第二十二条(2)
+  tiebreaker: "amount_rank_time_draw"   # 第二十五条
+  cascade:
+    position_priority: [F, W, M, D, G]  # 第二十四条: 前锋>边锋>中场>后卫>门将
+    invalidate_tie_priority: [F, W, M, D, G]
+    invalidate_tie_within_pos: "lower_rank_first"
+  collusion_block_next_window: true     # 第二十六条
+  conditional_release:
+    enabled: false
+
+transfer:
+  windows:
+    - { opens_at: "2024-09-06T20:00:00+08:00", closes_at: "2024-09-13T20:00:00+08:00", free_sign_period_seconds: 86400 }
+    - { opens_at: "2025-02-08T20:00:00+08:00", closes_at: "2025-02-15T20:00:00+08:00", free_sign_period_seconds: 43200 }
+  free_sign_fee: 10           # 第二十九条
+  revoke_window_seconds: 900  # 第三十二条: 15 分钟反悔
+  trades:
+    allow_cash: true          # 第四十九条
+    require_counterparty_accept: true   # 第五十四条
+    max_per_window_per_player: 1        # 第五十条: 一个转会窗至多被交易一次
+    min_cash_per_player: 10             # 第四十九条(2): 球员换资金每人≥10m
+  same_window_block_after_free_sign: true   # 第三十三条
+  max_owners_per_season: 3    # 第五十条: 整个赛季至多属于三位玩家
+
+release:                      # 第九章
+  refund: 0                   # 第五十九条: 解约无资金补偿
+  releaser_lifetime_block: true   # 第六十条
+  revoke_window_seconds: 900      # 第五十七条
+
+lineup:                       # FML 第三十五/三十六条 (FMC 第三十六/三十七条同)
+  starters_min: 8
+  starters_max: 11
+  appearance_caps:
+    G: 1                      # 恰有 1 名门将 (与 must_have 合用)
+  group_caps:                 # 复合上限
+    - { positions: [F],       max: 2 }   # 至多 2 前锋
+    - { positions: [F, W],    max: 4 }   # 至多 4 前锋+边锋
+    - { positions: [F, W, M], max: 7 }   # 至多 7 前锋+边锋+中场
+  must_have_positions: [G]
+  backward_substitution: {}   # FML/FMC 无后位顶前位规则；错位=拼写错误处理
+  default_strategy: "previous_round_then_top_value"   # 第四十条
+  misplaced_player_action: "drop_silent"              # 第四十一条
+
+match:
+  group_stage:                # FMC 小组赛 (瑞士轮 8 轮, 第四十四条)
+    rounds: 8
+    points: { win: 3, draw: 1, loss: 0 }
+    tiebreak_order:           # 第四十七条
+      - points
+      - goals_for
+      - goals_against
+      - h2h_points
+      - h2h_goals_for
+      - real_qualifier_count  # (6) 大名单中真实球队晋级淘汰赛的球员数
+      - draw
+  knockout:                   # FMC 第八章
+    bracket: "euro2024_8team" # 8 强单败, 两回合 (决赛中立场)
+    advance_priority:         # 第五十三条
+      - aggregate_goals
+      - away_goals
+      - pk
+      - draw
+    pk_score:                 # 第五十五条
+      goal: 2.0
+      assist: 1.0
+      yellow: -0.3
+      second_yellow_red: -0.7
+      red: -1.0
+      real_advance_bonus: 0.5
+    pk_default_order: [F, W, M, D, G]   # 第五十四条: 默认前锋→…→门将
+    enable_pick: true         # 第五十七条: 挑人
+    pick_deadline_seconds: 259200       # 至下次暗标投标前 (示例: 3 天)
+
+valid_goal:                   # FML 第九条 / FMC 第九条
+  count_event_types: [GOAL, OWN_GOAL, SAVED_PENALTY_BY_GK]
+  exclude_penalty_shootout: true
+  scope_minutes: "regular_and_extra_time"
+
+# 奖金：目前 BonusEngine 对所有 gameweek 应用同一套配置（联赛与杯赛共用）。
+# FML 只有失球奖 (第十二条)；FMC 有 第六十七条 五类。按两者并集配置，
+# 如需严格区分请为两条战线分别部署实例（见 COMPLIANCE.md）。
+bonuses:
+  assist:         { enabled: true, per_event: 5 }   # FMC 六十七(1)
+  red_card:       { enabled: true, per_event: 5 }   # FMC 六十七(2)
+  blue_team:                                        # FMC 六十七(3)
+    enabled: true
+    threshold_conceded_gt: 3
+    threshold_net_lt: -2
+    formula: "2*conceded - scored"
+  missed_penalty: { enabled: true, per_event: 3 }   # FMC 六十七(5)
+  conceded_goal:  { enabled: true, per_event: 5 }   # FML 第十二条 (对手每球 5m)
+  home_conceded:  { enabled: true, per_event: 5 }   # FMC 六十七(4) 主场失球奖
+
+prizes:                       # FMC 第六十八/六十九条
+  qualify:
+    extra: 80
+    weight_formula: "points + 0.5 * goals_for"
+  advance:
+    extra: 80
+    weight_formula: "net_goals + 1"
+  rounding: "half_up_million"
+
+injury:                       # FML/FMC 用自动解约 (第六十一/七十六条)，无伤病返款
+  enabled: false
+  refund_last_signing_fee: false
+  grant_extra_free_sign_after_window: false
+  gk_zero_balance_grant: 0
+
+storage:
+  driver: sqlite
+  url: "sqlite:///fml-fmc.db"
+  echo: false
+
+# 双线（第十二章 FMC 与 FML 之间的关系）
+cup:
+  enabled: true
+  # 非四大联赛的欧冠参赛队（杯赛专属，FMC阵容 第十条）——示例
+  extra_teams: [PSG, POR, BEN, CEL, PSV, FEY, RBS, YB, SHK, DIN]
+  # 四大联赛中的欧冠参赛队（双线球员）——示例
+  league_teams_in_cup: [RMA, BAR, ATM, MCI, ARS, LIV, AVL, INT, MIL, JUV, ATA, BOL, BAY, LEV, BVB, RBL, STU]
+  separate_after_group: true  # 第七十七条: 淘汰赛起两线独立
+  initial_cup_budget: 300m    # FMC 第十三条

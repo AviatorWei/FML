@@ -163,6 +163,42 @@ class BlueTeamBonus(BonusRule):
         return out
 
 
+class ConcededGoalBonus(BonusRule):
+    """FML 第十二条: each opponent goal awards per_event to the conceding side.
+
+    Note the rule text pays these at the next transfer-window opening; the
+    engine credits them at gameweek finalization, which is equivalent in
+    total and simpler to audit.
+    """
+
+    def __init__(self, per_event):
+        self.per_event = per_event
+
+    def compute(self, ctx):
+        out = []
+        if ctx.away_goals:
+            out.append(Award(ctx.home_manager_id, ctx.fixture_id,
+                             "CONCEDED_GOAL", ctx.away_goals * self.per_event))
+        if ctx.home_goals:
+            out.append(Award(ctx.away_manager_id, ctx.fixture_id,
+                             "CONCEDED_GOAL", ctx.home_goals * self.per_event))
+        return out
+
+
+class HomeConcededBonus(BonusRule):
+    """FMC 第六十七条(4) 主场失球奖: the HOME side earns per_event per goal
+    it concedes."""
+
+    def __init__(self, per_event):
+        self.per_event = per_event
+
+    def compute(self, ctx):
+        if ctx.away_goals:
+            return [Award(ctx.home_manager_id, ctx.fixture_id,
+                          "HOME_CONCEDED", ctx.away_goals * self.per_event)]
+        return []
+
+
 class BonusEngine:
     def __init__(self, rules: GameRules) -> None:
         cfg = rules.bonuses
@@ -181,6 +217,10 @@ class BonusEngine:
             )
         if cfg.missed_penalty.enabled:
             self.rules.append(MissedPenaltyBonus(cfg.missed_penalty.per_event))
+        if cfg.conceded_goal.enabled:
+            self.rules.append(ConcededGoalBonus(cfg.conceded_goal.per_event))
+        if cfg.home_conceded.enabled:
+            self.rules.append(HomeConcededBonus(cfg.home_conceded.per_event))
 
     def run(self, ctx: BonusContext) -> list[Award]:
         out = []

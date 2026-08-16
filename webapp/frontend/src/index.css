@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, #d8fbe8 0%, rgba(216, 251, 232, 0) 60%),
+    radial-gradient(900px 400px at -10% 0%, #e6fffb 0%, rgba(230, 255, 251, 0) 55%),
+    #f6faf8;
+  color: #0b1a14;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white shadow-card border border-pitch-100/70;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-pitch-600 text-white hover:bg-pitch-700 shadow-card;
+  }
+  .btn-ghost {
+    @apply btn bg-pitch-50 text-pitch-800 hover:bg-pitch-100;
+  }
+  .input {
+    @apply w-full rounded-xl border border-pitch-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-pitch-500 focus:ring-2 focus:ring-pitch-200;
+  }
+  .th {
+    @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-pitch-700/80;
+  }
+  .td {
+    @apply px-3 py-2.5 text-sm text-ink-900;
+  }
+}
+
+/* position chips */
+.pos-G { @apply bg-amber-100 text-amber-700; }
+.pos-D { @apply bg-sky-100 text-sky-700; }
+.pos-M { @apply bg-violet-100 text-violet-700; }
+.pos-F { @apply bg-rose-100 text-rose-700; }

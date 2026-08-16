@@ -382,17 +382,57 @@ injury:
 
 ---
 
-## 9. 后续 TODO
+## 9. 双线模式（联赛 + 杯赛）Dual-Competition Mode
 
-- 服务方法体填充
-- Alembic 迁移
-- 真实数据导入器（API/CSV 适配 OPTA、UEFA、Whoscored）
-- 单测：暗标级联、阵容校验、PK 解析、奖金公式（建议优先）
+一种新的联赛形式：每支球队既参加**联赛**（经理间循环赛），又参加**杯赛**。
+
+### 9.1 规则
+
+1. 经理同时签约两类球员：
+   - **联赛球员** — 其真实球队属于联赛池；
+   - **杯赛专属球员** — 其真实球队只参加杯赛（`cup.extra_teams` 中的额外球队）。
+2. 杯赛小组赛期间，真实球队同时具备杯赛资格的联赛球员
+   （`cup.league_teams_in_cup`）为**双线球员**，可同时出现在联赛和杯赛阵容中。
+   杯赛专属球员永远不能进入联赛阵容。
+3. **杯赛小组赛结束后两线独立**（对齐 fml-fmc-rules.md 第七十七/七十八条）：
+   第一个杯赛淘汰赛 gameweek 进入 LIVE 时自动执行 fork（也可
+   `POST /api/cup/separate` 手动触发）——把所有杯赛资格球员复制进
+   `cup_roster_entries`。此后联赛与杯赛完全独立：双线球员**同时**留在
+   两边名单并可继续两线出场，但签约/解约/交易只作用于指定的一条战线；
+   杯赛钱包（`initial_cup_budget`，小组赛期间只能签杯赛专属球员）的
+   限制同时解除。
+
+### 9.2 实现
+
+| 层 | 变更 |
+|---|---|
+| `core/enums.py` | 新增 `Competition` (LEAGUE / CUP) |
+| `core/_config_types.py` | 新增 `CupConfig`（enabled、extra_teams、league_teams_in_cup、separate_after_group），缺省禁用，旧配置零改动 |
+| `persistence/models` | `Gameweek.competition` 列、`Manager.cup_balance`（`ensure_schema_upgrades` 为旧库补列）；新表 `cup_state`（fork 时间戳）与 `cup_roster_entries`（fork 后的杯赛名单） |
+| `domain/competition.py` | `CupEligibilityService`：球队分类（CUP_ONLY / DUAL / LEAGUE_ONLY）、`check_starter`（阵容资格，fork 后杯赛核对杯赛名单）、`check_cup_spend`（杯赛钱包限制）、`separation_due` |
+| webapp `cup.py` | `/api/cup/status`、`/api/cup/roster`、`/api/cup/separate`；`check_starters_cup` / `run_fork` / `maybe_auto_fork` 供阵容与 gameweek 流程复用 |
+| webapp `lineups.py` | 提交时硬校验杯赛资格（422 列出违规球员）；`/validate` 返回 `cup_blocked` 预览 |
+| webapp `standings.py` | 积分表按 competition 过滤：联赛榜只计 LEAGUE，淘汰赛 bracket 只计 CUP |
+| webapp `gameweeks.py` | 创建 gameweek 可指定 competition；默认阵容生成也过滤杯赛违规球员 |
+
+分离时点判定是**推导式**的（存在非 GROUP 阶段、非 PENDING 的 CUP gameweek），
+无需额外状态，天然可回放。
+
+---
+
+## 10. 后续 TODO
+
+- ~~服务方法体填充~~ ✅（auction / lineup / scoring / bonuses / round / release /
+  trade / pick / injury / defaults / season 状态机均已实现）
+- Alembic 迁移（目前 `ensure_schema_upgrades` 做加列级补丁）
+- 真实数据导入器（API/CSV 适配 OPTA、UEFA、Whoscored；`player_list_generator`
+  的 Transfermarkt 抓取仍为留白）
+- 单测：release/trade/pick/injury/defaults/双线资格（新实现待补测试）
 - 直播帖 24 小时锁定 / 异议机制（可作为状态字段 `MatchResult.locked_at`）
 
 ---
 
-## 10. 参考
+## 11. 参考
 
 - 用户提供 FME-2021 规则原文：见仓库 `RULES.md`
 - 通用 fantasy 计分参考：[FPL Rules](https://fantasy.premierleague.com/help/rules)
